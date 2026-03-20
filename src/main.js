@@ -14,18 +14,30 @@ const root = document.querySelector("#app");
 
 root.innerHTML = `
   <main class="shell">
+    <div class="top-controls">
+      <button id="themeToggle" class="mode-toggle" type="button" aria-label="Toggle theme mode">
+        <span class="theme-dark">Dark</span>
+        <span class="mode-divider">|</span>
+        <span class="theme-light">Light</span>
+      </button>
+      <button id="notationToggle" class="mode-toggle" type="button" aria-label="Toggle notation mode" title="Switch notation to match exam board style (AQA or OCR)">
+        <span class="mode-aqa">AQA</span>
+        <span class="mode-divider">|</span>
+        <span class="mode-ocr">OCR</span>
+      </button>
+    </div>
+
     <header class="hero panel">
-      <p class="eyebrow">A Level Computer Science</p>
       <h1>Boolinator</h1>
       <p class="subtitle">
-        Terminate those gates.
+        Terminate those gates
       </p>
     </header>
 
     <section class="panel challenge">
       <div class="tile-head">
         <h2>Simplify the following Boolean expression</h2>
-        <button id="newChallengeBtn" class="ghost-btn">New challenge</button>
+        <button id="newChallengeBtn" class="ghost-btn">New Question</button>
       </div>
       <math-field id="challengeField" read-only></math-field>
       <div class="metrics">
@@ -37,14 +49,6 @@ root.innerHTML = `
     <section class="panel answer">
       <div class="tile-head answer-head">
         <h2>Enter your simplified expression</h2>
-        <div class="notation-inline">
-          <label for="notationToggle">Notation</label>
-          <button id="notationToggle" class="mode-toggle" type="button" aria-label="Toggle notation mode">
-            <span class="mode-aqa">AQA</span>
-            <span class="mode-divider">|</span>
-            <span class="mode-ocr">OCR</span>
-          </button>
-        </div>
       </div>
       <p id="notationHelp" class="notation-help"></p>
       <math-field id="answerField" default-mode="math"></math-field>
@@ -68,6 +72,7 @@ root.innerHTML = `
   </main>
 `;
 
+const themeToggle = document.querySelector("#themeToggle");
 const notationToggle = document.querySelector("#notationToggle");
 const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
@@ -84,6 +89,7 @@ const submissionHistory = document.querySelector("#submissionHistory");
 const isTouchDevice = detectTouchDevice();
 
 const state = {
+  themeId: "dark",
   notationId: "aqa",
   challenge: null,
   solved: false,
@@ -94,10 +100,29 @@ const state = {
 
 let _originalKeybindings = null;
 
+initializeTheme();
 setupMathFields();
+renderThemeToggle();
 renderNotationToggle();
 bindEvents();
 startNewChallenge();
+
+function initializeTheme() {
+  try {
+    const storedTheme = window.localStorage.getItem("boolinator-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      state.themeId = storedTheme;
+    }
+  } catch {
+    // LocalStorage can be unavailable; default to dark.
+  }
+
+  applyTheme();
+}
+
+function applyTheme() {
+  document.body.setAttribute("data-theme", state.themeId);
+}
 
 function setupMathFields() {
   challengeField.mathVirtualKeyboardPolicy = "manual";
@@ -189,7 +214,24 @@ function renderNotationToggle() {
   notationToggle.classList.toggle("mode-ocr-active", state.notationId === "logic");
 }
 
+function renderThemeToggle() {
+  themeToggle.classList.toggle("theme-dark-active", state.themeId === "dark");
+  themeToggle.classList.toggle("theme-light-active", state.themeId === "light");
+}
+
 function bindEvents() {
+  themeToggle.addEventListener("click", () => {
+    state.themeId = state.themeId === "dark" ? "light" : "dark";
+    applyTheme();
+    renderThemeToggle();
+
+    try {
+      window.localStorage.setItem("boolinator-theme", state.themeId);
+    } catch {
+      // Ignore if storage is blocked.
+    }
+  });
+
   notationToggle.addEventListener("click", () => {
     state.notationId = state.notationId === "aqa" ? "logic" : "aqa";
     renderNotationToggle();
@@ -225,10 +267,46 @@ function bindEvents() {
     renderHint();
   });
 
+  document.addEventListener("copy", handleClipboardEvent, true);
+  document.addEventListener("cut", handleClipboardEvent, true);
+
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
   });
+}
+
+function handleClipboardEvent(event) {
+  if (isClipboardEventAllowed(event)) {
+    return;
+  }
+
+  event.preventDefault();
+}
+
+function isClipboardEventAllowed(event) {
+  if (isWithinCopyAllowedArea(event.target)) {
+    return true;
+  }
+
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed) {
+    return false;
+  }
+
+  return (
+    isWithinCopyAllowedArea(selection.anchorNode)
+    && isWithinCopyAllowedArea(selection.focusNode)
+  );
+}
+
+function isWithinCopyAllowedArea(node) {
+  const element = node instanceof Element ? node : node?.parentElement;
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(element.closest("#challengeField, #answerField, #submissionHistory"));
 }
 
 function handleAnswerFieldKeydown(event) {
@@ -476,11 +554,11 @@ function startNewChallenge() {
   renderGateMetrics();
   renderTip();
 
-  setFeedback(
-    "New challenge loaded. Enter an equivalent expression with fewer gates.",
-    "neutral",
-    [],
-  );
+    setFeedback(
+      "New challenge loaded. Enter an equivalent expression with fewer gates.",
+      "info",
+      [],
+    );
 
   requestAnimationFrame(() => {
     answerField.focus({ preventScroll: true });
@@ -975,6 +1053,8 @@ function setFeedback(summary, tone, detailRows) {
 
 function toneClass(tone) {
   switch (tone) {
+      case "info":
+        return "tone-info";
     case "success":
       return "tone-success";
     case "good":
