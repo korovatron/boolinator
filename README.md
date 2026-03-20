@@ -66,13 +66,13 @@ boolinator/
 │   ├── booleanEngine.js   # Parser, evaluator, generator, gate counter
 │   └── style.css          # Styling (dark theme)
 ├── README.md              # This file
-├── LICENSE                # MIT License
+├── LICENSE                # GNU GPL v3
 └── .gitignore             # Git configuration
 ```
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+GNU General Public License v3.0 (GPL-3.0) — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
