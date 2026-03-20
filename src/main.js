@@ -25,7 +25,7 @@ root.innerHTML = `
 
     <section class="panel challenge">
       <div class="tile-head">
-        <h2>Challenge expression</h2>
+        <h2>Simplify the following Boolean expression</h2>
         <button id="newChallengeBtn" class="ghost-btn">New challenge</button>
       </div>
       <math-field id="challengeField" read-only></math-field>
@@ -50,7 +50,7 @@ root.innerHTML = `
       <div class="actions">
         <button id="checkBtn" class="primary-btn">Check expression</button>
         <button id="clearBtn" class="ghost-btn">Clear</button>
-        <button id="hintBtn" class="ghost-btn">Show one minimal form</button>
+        <button id="hintBtn" class="ghost-btn">Hint</button>
       </div>
       <p id="inputTip" class="notation-help"></p>
     </section>
@@ -60,7 +60,7 @@ root.innerHTML = `
       <p id="feedbackSummary">Enter an expression and press Check expression.</p>
       <div id="feedbackDetails" class="feedback-details"></div>
       <div id="hintArea" class="hint-area hidden">
-        <p>One valid minimal form:</p>
+        <p>Next hint from your latest correct line:</p>
         <math-field id="hintField" read-only></math-field>
         <p id="hintText" class="hint-text"></p>
       </div>
@@ -529,6 +529,10 @@ function addEquivalentSubmission(ast) {
   const astSnapshot = JSON.parse(JSON.stringify(ast));
   state.equivalentSubmissions.push(astSnapshot);
   renderSubmissionHistory();
+  hintArea.classList.add("hidden");
+  hintField.classList.add("hidden");
+  setFieldValue(hintField, "");
+  hintText.textContent = "";
 }
 
 function renderReadonlyMathFieldLatex(field, latex) {
@@ -576,9 +580,218 @@ function formatAstForAnswerField(ast) {
 }
 
 function renderHint() {
-  const hintLatex = astToLatex(state.challenge.minimalAst, state.notationId);
-  setFieldValue(hintField, hintLatex);
-  hintText.textContent = astToNotationText(state.challenge.minimalAst, state.notationId);
+  const latestAst = state.equivalentSubmissions.at(-1) ?? null;
+  const hintSourceAst = latestAst ?? state.challenge.initialAst;
+  const hintSourceLabel = latestAst
+    ? "your latest correct line"
+    : "the original challenge";
+
+  const latestGateCount = gateCountAst(hintSourceAst);
+  if (latestAst && latestGateCount <= state.challenge.minimalGateCount) {
+    hintField.classList.add("hidden");
+    setFieldValue(hintField, "");
+    hintText.textContent = "Your latest correct line is already at the best possible gate count for this challenge.";
+    return;
+  }
+
+  const hint = findGateReductionHint(hintSourceAst);
+  if (!hint) {
+    hintField.classList.add("hidden");
+    setFieldValue(hintField, "");
+    hintText.textContent = "Look for a redundant 0 or 1, a complement pair, absorption, or a negated bracket that can be opened up.";
+    return;
+  }
+
+  if (hint.focusAst) {
+    hintField.classList.remove("hidden");
+    setFieldValue(hintField, astToLatex(hint.focusAst, state.notationId));
+  } else {
+    hintField.classList.add("hidden");
+    setFieldValue(hintField, "");
+  }
+
+  hintText.textContent = `Hint based on ${hintSourceLabel}: ${hint.message}`;
+}
+
+function findGateReductionHint(ast) {
+  if (!ast) {
+    return null;
+  }
+
+  if (ast.type === "not" && ast.expr?.type === "not") {
+    return {
+      focusAst: ast,
+      message: "This part has a double negation. Remove the two NOTs together.",
+    };
+  }
+
+  if (ast.type === "or" || ast.type === "and") {
+    const operands = flattenAssociative(ast, ast.type);
+
+    if (ast.type === "or") {
+      if (operands.some((operand) => operand.type === "const" && operand.value)) {
+        return {
+          focusAst: ast,
+          message: "This bracket contains + 1. The whole OR expression collapses to 1.",
+        };
+      }
+
+      if (operands.some((operand) => operand.type === "const" && !operand.value)) {
+        return {
+          focusAst: ast,
+          message: "This part contains + 0. Use the identity law to remove the 0 term.",
+        };
+      }
+    }
+
+    if (ast.type === "and") {
+      if (operands.some((operand) => operand.type === "const" && !operand.value)) {
+        return {
+          focusAst: ast,
+          message: "This bracket contains .0. The whole AND expression collapses to 0.",
+        };
+      }
+
+      if (operands.some((operand) => operand.type === "const" && operand.value)) {
+        return {
+          focusAst: ast,
+          message: "This part contains .1. Use the identity law to remove the 1 term.",
+        };
+      }
+    }
+
+    const duplicateOperand = findDuplicateOperand(operands);
+    if (duplicateOperand) {
+      return {
+        focusAst: ast,
+        message: ast.type === "or"
+          ? "This part repeats the same term in an OR. Use idempotent law: X + X = X."
+          : "This part repeats the same term in an AND. Use idempotent law: X.X = X.",
+      };
+    }
+
+    if (hasComplementPair(operands)) {
+      return {
+        focusAst: ast,
+        message: ast.type === "or"
+          ? "This part contains a complement pair. Use X + X' = 1."
+          : "This part contains a complement pair. Use X.X' = 0.",
+      };
+    }
+
+    const absorptionMatch = findAbsorptionMatch(operands, ast.type);
+    if (absorptionMatch) {
+      return {
+        focusAst: ast,
+        message: ast.type === "or"
+          ? "This matches absorption. Use X + X.Y = X."
+          : "This matches absorption. Use X.(X + Y) = X.",
+      };
+    }
+  }
+
+  if (ast.type === "not" && (ast.expr?.type === "or" || ast.expr?.type === "and")) {
+    return {
+      focusAst: ast,
+      message: "Apply De Morgan's law to this negated bracket. That should open a simpler next step.",
+    };
+  }
+
+  if (ast.type === "not") {
+    return findGateReductionHint(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return findGateReductionHint(ast.left) ?? findGateReductionHint(ast.right);
+  }
+
+  return null;
+}
+
+function flattenAssociative(node, kind) {
+  if (!node || node.type !== kind) {
+    return [node];
+  }
+
+  return [
+    ...flattenAssociative(node.left, kind),
+    ...flattenAssociative(node.right, kind),
+  ];
+}
+
+function astEquals(left, right) {
+  if (!left || !right || left.type !== right.type) {
+    return false;
+  }
+
+  if (left.type === "const") {
+    return left.value === right.value;
+  }
+
+  if (left.type === "var") {
+    return left.name === right.name;
+  }
+
+  if (left.type === "not") {
+    return astEquals(left.expr, right.expr);
+  }
+
+  return astEquals(left.left, right.left) && astEquals(left.right, right.right);
+}
+
+function isComplementPair(left, right) {
+  if (left?.type === "not") {
+    return astEquals(left.expr, right);
+  }
+
+  if (right?.type === "not") {
+    return astEquals(right.expr, left);
+  }
+
+  return false;
+}
+
+function hasComplementPair(operands) {
+  for (let leftIndex = 0; leftIndex < operands.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < operands.length; rightIndex += 1) {
+      if (isComplementPair(operands[leftIndex], operands[rightIndex])) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function findDuplicateOperand(operands) {
+  for (let leftIndex = 0; leftIndex < operands.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < operands.length; rightIndex += 1) {
+      if (astEquals(operands[leftIndex], operands[rightIndex])) {
+        return operands[leftIndex];
+      }
+    }
+  }
+
+  return null;
+}
+
+function findAbsorptionMatch(operands, outerKind) {
+  const innerKind = outerKind === "or" ? "and" : "or";
+
+  for (const operand of operands) {
+    for (const other of operands) {
+      if (operand === other || other?.type !== innerKind) {
+        continue;
+      }
+
+      const innerOperands = flattenAssociative(other, innerKind);
+      if (innerOperands.some((innerOperand) => astEquals(innerOperand, operand))) {
+        return { keep: operand, drop: other };
+      }
+    }
+  }
+
+  return null;
 }
 
 function renderGateMetrics() {
