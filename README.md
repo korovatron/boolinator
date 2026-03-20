@@ -7,11 +7,11 @@ A free A-Level Boolean algebra simplification practice tool for students revisin
 Boolinator generates random Boolean logic challenges and grades your simplified expressions based on:
 - **Logical equivalence** — your answer must match the truth table
 - **Gate count reduction** — simplify to the minimum possible 2-input gates
-- **Notation support** — AQA, logic symbols, or programming notation
+- **Notation support** — AQA and logic symbols
 
 ## Features
 
-- **Multiple notation styles**: AQA (overbar, apostrophe), logic symbols (∧, ∨, ¬), or programming (!&|)
+- **Multiple notation styles**: AQA (overbar, apostrophe) and logic symbols (∧, ∨, ¬)
 - **Smart parsing**: Supports implicit AND, superscript primes, LaTeX input, and copy-paste from challenges
 - **Real-time feedback**: Equivalence checking, gate counting, and hints
 - **Exam-style questions**: Diverse generator with realistic simplification depths
@@ -49,7 +49,7 @@ Push to the `main` branch and enable GitHub Pages in repository settings for aut
 ## How It Works
 
 1. A random challenge expression is generated with a known gate count
-2. You enter a simplified equivalent expression in AQA, logic, or code notation
+2. You enter a simplified equivalent expression in AQA or logic notation
 3. Press **Check expression** to verify:
    - Is it logically equivalent? (truth table match)
    - How many gates does it use? (compared to challenge and minimal)
@@ -83,7 +83,6 @@ Found a bug or have an idea? Feel free to open an issue or submit a pull request
 Boolinator supports notation from major exam boards:
 - **AQA**: Overbar (‾), apostrophe ('), superscript prime (ᴘ)
 - **OCR/Edexcel**: Logic symbols (∧, ∨, ¬)
-- **WJEC**: Programming notation (!, &, |)
 
 ---
 

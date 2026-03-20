@@ -18,18 +18,13 @@ const TOKEN = {
 export const NOTATIONS = [
   {
     id: "aqa",
-    label: "AQA (+, ., overbar)",
-    help: "Use + for OR, . for AND, and overbar, apostrophe (A'), superscript prime (A^{\\prime}), or ! for NOT.",
+    label: "A . (B + C)",
+    help: "Use + for OR, . for AND, and overbar for NOT.",
   },
   {
     id: "logic",
-    label: "Logic symbols (∨, ∧, ¬)",
+    label: "A ∧ (B ∨ C)",
     help: "Use ∨ for OR, ∧ for AND, and ¬ for NOT.",
-  },
-  {
-    id: "code",
-    label: "Programming style (|, &, !)",
-    help: "Use | for OR, & for AND, and ! for NOT.",
   },
 ];
 
@@ -814,7 +809,7 @@ export function astToLatex(ast, notationId) {
       }
 
       const child = render(node.expr, precedence.not);
-      const notSymbol = notationId === "code" ? "!" : "\\lnot ";
+      const notSymbol = notationId === "code" ? "!" : "\\lnot\\,";
       return `${notSymbol}${child}`;
     }
 
@@ -1247,6 +1242,7 @@ function tokenize(rawInput) {
   source = source.replace(/\u00a0/g, " ");
   source = source.trim();
   source = source.replace(/\$/g, "");
+  source = normalizeMathLiveLatex(source);
   source = normalizePrimeSuperscripts(source);
   source = convertLatexOverbar(source);
   source = source.replace(/\\mathbin\s*\{([^{}]*)\}/g, "$1");
@@ -1274,20 +1270,7 @@ function tokenize(rawInput) {
         end += 1;
       }
       const word = source.slice(index, end);
-      const upper = word.toUpperCase();
-
-      if (upper === "AND") {
-        tokens.push({ type: TOKEN.AND, raw: word });
-      } else if (upper === "OR") {
-        tokens.push({ type: TOKEN.OR, raw: word });
-      } else if (upper === "NOT") {
-        tokens.push({ type: TOKEN.NOT, raw: word });
-      } else if (upper.length === 1 && VARIABLE_POOL.includes(upper)) {
-        tokens.push({ type: TOKEN.VAR, value: upper, raw: word });
-      } else {
-        throw new Error(`Unknown symbol '${word}'. Use variables A-D only.`);
-      }
-
+      tokens.push(...tokenizeAlphaWord(word));
       index = end;
       continue;
     }
@@ -1351,6 +1334,68 @@ function normalizePrimeSuperscripts(input) {
   working = working.replace(/\^\s*('+|′+)/g, (_, primes) => {
     return primes.replace(/′/g, "'");
   });
+
+  return working;
+}
+
+function tokenizeAlphaWord(word) {
+  const upper = word.toUpperCase();
+  const tokens = [];
+  let index = 0;
+
+  while (index < upper.length) {
+    if (upper.startsWith("AND", index)) {
+      tokens.push({ type: TOKEN.AND, raw: word.slice(index, index + 3) });
+      index += 3;
+      continue;
+    }
+
+    if (upper.startsWith("NOT", index)) {
+      tokens.push({ type: TOKEN.NOT, raw: word.slice(index, index + 3) });
+      index += 3;
+      continue;
+    }
+
+    if (upper.startsWith("OR", index)) {
+      tokens.push({ type: TOKEN.OR, raw: word.slice(index, index + 2) });
+      index += 2;
+      continue;
+    }
+
+    const variable = upper[index];
+    if (VARIABLE_POOL.includes(variable)) {
+      tokens.push({ type: TOKEN.VAR, value: variable, raw: word[index] });
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`Unknown symbol '${word}'. Use variables A-D only.`);
+  }
+
+  return tokens;
+}
+
+function normalizeMathLiveLatex(input) {
+  let working = input;
+
+  working = working.replace(/\\overline\s*\{/g, "\\overline{");
+  working = working.replace(/\\bar\s*\{/g, "\\bar{");
+  working = working.replace(/\\left|\\mleft/g, "");
+  working = working.replace(/\\right|\\mright/g, "");
+  working = working.replace(/\\operatorname\s*\{\s*lnot\s*\}/gi, "\\lnot");
+  working = working.replace(/\\operatorname\s*\{\s*neg\s*\}/gi, "\\neg");
+  working = working.replace(/\\operatorname\s*\{\s*not\s*\}/gi, "NOT");
+  working = working.replace(/\\operatorname\s*\{\s*cdot\s*\}/gi, "\\cdot");
+  working = working.replace(/\\operatorname\s*\{\s*times\s*\}/gi, "\\times");
+  working = working.replace(/\\mathord\s*\{\s*([ABCD01])\s*\}/g, "$1");
+  working = working.replace(/\\mathrm\s*\{\s*([ABCD01])\s*\}/g, "$1");
+  working = working.replace(/\\text\s*\{\s*([ABCD01])\s*\}/g, "$1");
+  working = working.replace(/\\lnot\s*\{\s*\}/g, "\\lnot");
+  working = working.replace(/\\neg\s*\{\s*\}/g, "\\neg");
+  working = working.replace(/\\cdot\s*\{\s*\}/g, "\\cdot");
+  working = working.replace(/\\times\s*\{\s*\}/g, "\\times");
+  working = working.replace(/\\placeholder(?:\[[^\]]*\])?(?:\{[^{}]*\})+/g, "");
+  working = working.replace(/\\cursor\b/g, "");
 
   return working;
 }
@@ -1466,7 +1511,7 @@ function pickConnector(kind, notationId, forLatex) {
       return forLatex ? "\\,\\cdot\\," : " . ";
     }
     if (notationId === "logic") {
-      return forLatex ? "\\land " : "∧";
+      return forLatex ? "\\,\\land\\," : "∧";
     }
     return forLatex ? "\\mathbin{\\&}" : "&";
   }
@@ -1475,7 +1520,7 @@ function pickConnector(kind, notationId, forLatex) {
     return forLatex ? "\\,+\\," : " + ";
   }
   if (notationId === "logic") {
-    return forLatex ? "\\lor " : "∨";
+    return forLatex ? "\\,\\lor\\," : "∨";
   }
   return forLatex ? "\\mid " : "|";
 }

@@ -45,8 +45,7 @@ root.innerHTML = `
         </div>
       </div>
       <p id="notationHelp" class="notation-help"></p>
-      <math-field id="answerField"></math-field>
-      <div id="keypad" class="keypad"></div>
+      <math-field id="answerField" default-mode="math"></math-field>
       <div class="actions">
         <button id="checkBtn" class="primary-btn">Check expression</button>
         <button id="clearBtn" class="ghost-btn">Clear</button>
@@ -65,6 +64,9 @@ root.innerHTML = `
         <p id="hintText" class="hint-text"></p>
       </div>
     </section>
+
+    <p class="copyright">&copy; 2026 Neil Kendall</p>
+    <p class="more-link">More @ <a href="https://www.korovatron.co.uk" target="_blank" rel="noopener noreferrer">www.korovatron.co.uk</a></p>
   </main>
 `;
 
@@ -72,7 +74,6 @@ const notationSelect = document.querySelector("#notationSelect");
 const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
 const answerField = document.querySelector("#answerField");
-const keypad = document.querySelector("#keypad");
 const inputTip = document.querySelector("#inputTip");
 const feedbackSummary = document.querySelector("#feedbackSummary");
 const feedbackDetails = document.querySelector("#feedbackDetails");
@@ -82,6 +83,7 @@ const equivalentBest = document.querySelector("#equivalentBest");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
+const isTouchDevice = detectTouchDevice();
 
 const state = {
   notationId: "aqa",
@@ -90,43 +92,7 @@ const state = {
   bestEquivalent: null,
 };
 
-const keypadButtons = {
-  aqa: [
-    { label: "A", insert: "A" },
-    { label: "B", insert: "B" },
-    { label: "C", insert: "C" },
-    { label: "D", insert: "D" },
-    { label: "(", insert: "(" },
-    { label: ")", insert: ")" },
-    { label: "+", insert: "+" },
-    { label: ".", insert: "." },
-    { label: "!", insert: "!" },
-    { label: "'", insert: "'" },
-    { label: "overbar", action: "overbarPlaceholder" },
-  ],
-  logic: [
-    { label: "A", insert: "A" },
-    { label: "B", insert: "B" },
-    { label: "C", insert: "C" },
-    { label: "D", insert: "D" },
-    { label: "(", insert: "(" },
-    { label: ")", insert: ")" },
-    { label: "∨", insert: "∨" },
-    { label: "∧", insert: "∧" },
-    { label: "¬", insert: "¬" },
-  ],
-  code: [
-    { label: "A", insert: "A" },
-    { label: "B", insert: "B" },
-    { label: "C", insert: "C" },
-    { label: "D", insert: "D" },
-    { label: "(", insert: "(" },
-    { label: ")", insert: ")" },
-    { label: "|", insert: "|" },
-    { label: "&", insert: "&" },
-    { label: "!", insert: "!" },
-  ],
-};
+let _originalKeybindings = null;
 
 setupMathFields();
 populateNotationSelector();
@@ -136,7 +102,79 @@ startNewChallenge();
 function setupMathFields() {
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
-  answerField.mathVirtualKeyboardPolicy = "auto";
+  answerField.defaultMode = "math";
+  answerField.setAttribute("default-mode", "math");
+  answerField.mathVirtualKeyboardPolicy = isTouchDevice ? "auto" : "manual";
+  answerField.setAttribute(
+    "math-virtual-keyboard-policy",
+    isTouchDevice ? "auto" : "manual",
+  );
+  answerField.setAttribute(
+    "virtual-keyboard-mode",
+    isTouchDevice ? "onfocus" : "manual",
+  );
+
+  disableMathFieldContextMenu(challengeField);
+  disableMathFieldContextMenu(answerField);
+  disableMathFieldContextMenu(hintField);
+
+  applyAnswerKeybindings();
+  configureAnswerVirtualKeyboard();
+}
+
+function disableMathFieldContextMenu(field) {
+  if ("menuItems" in field) {
+    field.menuItems = [];
+  }
+
+  field.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+  }, true);
+
+  field.addEventListener("mousedown", (event) => {
+    if (event.button !== 2) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+  }, true);
+
+  field.addEventListener("pointerdown", (event) => {
+    if (event.button !== 2) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+  }, true);
+}
+
+function applyAnswerKeybindings() {
+  if (_originalKeybindings === null) {
+    _originalKeybindings = answerField.keybindings;
+  }
+
+  const suppressed = new Set([
+    "^",
+    "6",
+    "v",
+    "shift-v",
+    "a",
+    "shift-a",
+    "b",
+    "shift-b",
+    "c",
+    "shift-c",
+    "d",
+    "shift-d",
+  ]);
+
+  answerField.keybindings = [
+    ..._originalKeybindings.filter((b) => !suppressed.has(b.key)),
+  ];
 }
 
 function populateNotationSelector() {
@@ -153,8 +191,10 @@ function bindEvents() {
     renderNotationMeta();
     renderChallengeExpression();
     renderHint();
-    renderKeypad();
     renderTip();
+    retranslateAnswerField();
+    applyAnswerKeybindings();
+    configureAnswerVirtualKeyboard();
   });
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
@@ -174,6 +214,208 @@ function bindEvents() {
     hintArea.classList.remove("hidden");
     renderHint();
   });
+
+  answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
+  answerField.addEventListener("blur", () => {
+    retranslateAnswerField();
+  });
+}
+
+function handleAnswerFieldKeydown(event) {
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  }
+
+  const key = event.key;
+  const isLogic = state.notationId === "logic";
+  const passthroughKeys = new Set([
+    "Backspace",
+    "Delete",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+    "Tab",
+    "Enter",
+    "Escape",
+  ]);
+
+  if (passthroughKeys.has(key)) {
+    return;
+  }
+
+  if (key === "^" || key === "6") {
+    if (isLogic) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      deferAnswerMutation(() => insertIntoAnswer("∧"));
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    return;
+  }
+
+  if (key === "-" || key === "_" || key === "`" || key === "¬") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    if (isLogic) {
+      deferAnswerMutation(() => insertIntoAnswer("\\lnot\\,"));
+    } else {
+      deferAnswerMutation(() => insertOverbarPlaceholder());
+    }
+    return;
+  }
+
+  if (/^[0-9]$/.test(key)) {
+    if (key === "0" || key === "1") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      deferAnswerMutation(() => insertIntoAnswer(key));
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    return;
+  }
+
+  if (!/^[a-zA-Z]$/.test(key)) {
+    if (key === "." && state.notationId === "aqa") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      deferAnswerMutation(() => insertIntoAnswer("."));
+      return;
+    }
+
+    if (key === "(" && state.notationId === "aqa") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      deferAnswerMutation(() => insertIntoAnswer("("));
+      return;
+    }
+
+    if (key.length === 1) {
+      const allowedSymbols = isLogic
+        ? new Set(["(", ")", "∨", "∧", "¬"])
+        : new Set(["(", ")", "+", "."]);
+
+      if (allowedSymbols.has(key)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+    }
+    return;
+  }
+
+  const upper = key.toUpperCase();
+  if (["A", "B", "C", "D"].includes(upper)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    deferAnswerMutation(() => insertIntoAnswer(upper));
+    return;
+  }
+
+  if (isLogic && upper === "V") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    deferAnswerMutation(() => insertIntoAnswer("∨"));
+    return;
+  }
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  event.stopPropagation();
+}
+
+function deferAnswerMutation(action) {
+  setTimeout(() => {
+    action();
+  }, 0);
+}
+
+function detectTouchDevice() {
+  if (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) {
+    return true;
+  }
+
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    return window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  return false;
+}
+
+function configureAnswerVirtualKeyboard() {
+  if (typeof window === "undefined" || !window.mathVirtualKeyboard) {
+    return;
+  }
+
+  const wasVisible = Boolean(window.mathVirtualKeyboard.visible);
+
+  window.mathVirtualKeyboard.layouts = [
+    createBooleanVirtualKeyboardLayout(state.notationId),
+  ];
+
+  if (isTouchDevice) {
+    window.mathVirtualKeyboard.container = document.body;
+  }
+
+  if (wasVisible) {
+    window.mathVirtualKeyboard.hide();
+    window.mathVirtualKeyboard.show();
+  }
+}
+
+function createBooleanVirtualKeyboardLayout(notationId) {
+  const isLogic = notationId === "logic";
+
+  return {
+    label: isLogic ? "Logic" : "AQA",
+    labelClass: "MLK__tex-math",
+    tooltip: isLogic ? "Logic notation keyboard" : "AQA notation keyboard",
+    rows: [
+      [
+        { insert: "A", label: "A" },
+        { insert: "B", label: "B" },
+        { insert: "C", label: "C" },
+        { insert: "D", label: "D" },
+        { insert: "0", label: "0" },
+        { insert: "1", label: "1" },
+      ],
+      [
+        { insert: isLogic ? "∧" : ".", label: "AND", class: "small" },
+        { insert: isLogic ? "∨" : "+", label: "OR", class: "small" },
+        {
+          insert: isLogic ? "\\lnot\\," : "\\overline{#?}",
+          label: "NOT",
+          class: "small",
+        },
+        { insert: "(", label: "(" },
+        { insert: ")", label: ")" },
+      ],
+      [
+        "[left]",
+        "[right]",
+        { label: "[backspace]", width: 3 },
+      ],
+    ],
+  };
 }
 
 function startNewChallenge() {
@@ -186,7 +428,6 @@ function startNewChallenge() {
 
   renderNotationMeta();
   renderChallengeExpression();
-  renderKeypad();
   renderGateMetrics();
   renderTip();
 
@@ -207,6 +448,27 @@ function renderChallengeExpression() {
   setFieldValue(challengeField, challengeLatex);
 }
 
+function retranslateAnswerField() {
+  const latex = getFieldValue(answerField).trim();
+  if (!latex) return;
+  try {
+    const ast = parseBooleanExpression(latex);
+    setFieldValue(answerField, formatAstForAnswerField(ast));
+  } catch {
+    // If the current content can't be parsed, leave it unchanged
+  }
+}
+
+function formatAstForAnswerField(ast) {
+  const latex = astToLatex(ast, state.notationId);
+
+  if (state.notationId !== "aqa") {
+    return latex;
+  }
+
+  return latex.replace(/\\,?\\cdot\\,?/g, ".");
+}
+
 function renderHint() {
   const hintLatex = astToLatex(state.challenge.minimalAst, state.notationId);
   setFieldValue(hintField, hintLatex);
@@ -221,28 +483,6 @@ function renderGateMetrics() {
     equivalentBest.textContent = "Best equivalent so far: none";
   } else {
     equivalentBest.textContent = `Best equivalent so far: ${state.bestEquivalent}`;
-  }
-}
-
-function renderKeypad() {
-  const buttons = keypadButtons[state.notationId] ?? keypadButtons.aqa;
-  keypad.innerHTML = "";
-
-  for (const buttonConfig of buttons) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "key-btn";
-    button.textContent = buttonConfig.label;
-
-    button.addEventListener("click", () => {
-      if (buttonConfig.action === "overbarPlaceholder") {
-        insertOverbarPlaceholder();
-        return;
-      }
-      insertIntoAnswer(buttonConfig.insert);
-    });
-
-    keypad.appendChild(button);
   }
 }
 
@@ -275,23 +515,30 @@ function insertOverbarPlaceholder() {
 
 function renderTip() {
   if (state.notationId === "aqa") {
-    inputTip.textContent = "Tip: AQA NOT can be entered as overbar, apostrophe (A'), superscript prime (A^{\\prime}), or !A.";
+    inputTip.textContent = "Tip: Use overbar for NOT in AQA notation.";
     return;
   }
 
-  if (state.notationId === "logic") {
-    inputTip.textContent = "Tip: You can type logic symbols directly or use the on-screen keypad.";
-    return;
-  }
-
-  inputTip.textContent = "Tip: Programming notation accepts ! for NOT, & for AND, and | for OR.";
+  inputTip.textContent = "Tip: You can type logic symbols directly or use the on-screen keypad.";
 }
 
 function insertIntoAnswer(content) {
   answerField.focus();
 
+  if (typeof answerField.executeCommand === "function") {
+    const inserted = answerField.executeCommand([
+      "insert",
+      content,
+      { format: "latex" },
+    ]);
+
+    if (inserted) {
+      return;
+    }
+  }
+
   if (typeof answerField.insert === "function") {
-    answerField.insert(content);
+    answerField.insert(content, { format: "latex" });
     return;
   }
 
@@ -309,6 +556,7 @@ function checkAnswer() {
   let ast;
   try {
     ast = parseBooleanExpression(source);
+    setFieldValue(answerField, formatAstForAnswerField(ast));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not parse expression.";
     setFeedback("Could not parse that expression.", "error", [
@@ -414,7 +662,7 @@ function setFieldValue(field, value) {
 
 function getFieldValue(field) {
   if (typeof field.getValue === "function") {
-    return field.getValue("latex-expanded");
+    return field.getValue("latex");
   }
   return String(field.value ?? "");
 }
