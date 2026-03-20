@@ -144,6 +144,36 @@ h2 {
   margin: 0;
 }
 
+.mode-toggle {
+  min-width: 170px;
+  border-radius: 12px;
+  border: 1px solid rgba(236, 243, 251, 0.22);
+  padding: 8px 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.mode-toggle .mode-divider {
+  color: rgba(236, 243, 251, 0.5);
+}
+
+.mode-toggle.mode-aqa-active .mode-aqa,
+.mode-toggle.mode-ocr-active .mode-ocr {
+  color: var(--ink);
+}
+
+.mode-toggle.mode-aqa-active .mode-ocr,
+.mode-toggle.mode-ocr-active .mode-aqa {
+  color: rgba(236, 243, 251, 0.4);
+}
+
 .copyright {
   grid-column: 1 / -1;
   justify-self: center;
@@ -173,10 +203,6 @@ h2 {
 
 .more-link a:hover {
   color: var(--accent);
-}
-
-.notation-inline select {
-  min-width: 170px;
 }
 
 #notationHelp {
@@ -371,6 +397,13 @@ math-field::part(keyboard) {
   font-size: 0.82rem;
 }
 
+#minimalGateCount {
+  color: #ffe8d9;
+  background: color-mix(in srgb, var(--brand) 34%, var(--surface-elevated) 66%);
+  border-color: color-mix(in srgb, var(--brand) 70%, #ffffff 30%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
 .primary-btn,
 .ghost-btn {
   border-radius: 12px;
@@ -404,6 +437,11 @@ math-field::part(keyboard) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
+}
+
+#feedbackSummary {
+  margin-top: 10px;
 }
 
 .feedback-details {
@@ -500,7 +538,7 @@ math-field::part(keyboard) {
     width: 100%;
   }
 
-  .notation-inline select {
+  .notation-inline .mode-toggle {
     min-width: 0;
     flex: 1;
   }

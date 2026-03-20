@@ -1,7 +1,6 @@
 import "mathlive";
 
 import {
-  NOTATIONS,
   astToLatex,
   astToNotationText,
   evaluateAgainstTruthTable,
@@ -19,7 +18,7 @@ root.innerHTML = `
       <p class="eyebrow">A Level Computer Science</p>
       <h1>Boolinator</h1>
       <p class="subtitle">
-        Practise simplifying Boolean expressions by reducing gate count while staying logically equivalent.
+        Terminate those gates.
       </p>
     </header>
 
@@ -29,41 +28,39 @@ root.innerHTML = `
         <button id="newChallengeBtn" class="ghost-btn">New challenge</button>
       </div>
       <math-field id="challengeField" read-only></math-field>
-      <div id="submissionHistory" class="submission-history hidden" aria-live="polite"></div>
       <div class="metrics">
-        <span id="initialGateCount"></span>
         <span id="minimalGateCount"></span>
-        <span id="equivalentBest"></span>
       </div>
+      <div id="submissionHistory" class="submission-history hidden" aria-live="polite"></div>
     </section>
 
     <section class="panel answer">
       <div class="tile-head answer-head">
-        <h2>Your simplified expression</h2>
+        <h2>Enter your simplified expression</h2>
         <div class="notation-inline">
-          <label for="notationSelect">Notation</label>
-          <select id="notationSelect"></select>
+          <label for="notationToggle">Notation</label>
+          <button id="notationToggle" class="mode-toggle" type="button" aria-label="Toggle notation mode">
+            <span class="mode-aqa">AQA</span>
+            <span class="mode-divider">|</span>
+            <span class="mode-ocr">OCR</span>
+          </button>
         </div>
       </div>
       <p id="notationHelp" class="notation-help"></p>
       <math-field id="answerField" default-mode="math"></math-field>
       <div class="actions">
-        <button id="checkBtn" class="primary-btn">Check expression</button>
         <button id="clearBtn" class="ghost-btn">Clear</button>
         <button id="hintBtn" class="ghost-btn">Hint</button>
+        <button id="checkBtn" class="primary-btn">Submit</button>
       </div>
-      <p id="inputTip" class="notation-help"></p>
-    </section>
-
-    <section class="panel feedback" id="feedbackPanel">
-      <h2>Feedback</h2>
-      <p id="feedbackSummary">Enter an expression and press Check expression.</p>
+      <p id="feedbackSummary">Enter an expression and press Submit.</p>
       <div id="feedbackDetails" class="feedback-details"></div>
       <div id="hintArea" class="hint-area hidden">
-        <p>Next hint from your latest correct line:</p>
+        <p>Hint</p>
         <math-field id="hintField" read-only></math-field>
         <p id="hintText" class="hint-text"></p>
       </div>
+      <p id="inputTip" class="notation-help"></p>
     </section>
 
     <p class="copyright">&copy; 2026 Neil Kendall</p>
@@ -71,16 +68,15 @@ root.innerHTML = `
   </main>
 `;
 
-const notationSelect = document.querySelector("#notationSelect");
+const notationToggle = document.querySelector("#notationToggle");
 const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
+const answerPanel = document.querySelector(".panel.answer");
 const answerField = document.querySelector("#answerField");
 const inputTip = document.querySelector("#inputTip");
 const feedbackSummary = document.querySelector("#feedbackSummary");
 const feedbackDetails = document.querySelector("#feedbackDetails");
-const initialGateCount = document.querySelector("#initialGateCount");
 const minimalGateCount = document.querySelector("#minimalGateCount");
-const equivalentBest = document.querySelector("#equivalentBest");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
@@ -99,7 +95,7 @@ const state = {
 let _originalKeybindings = null;
 
 setupMathFields();
-populateNotationSelector();
+renderNotationToggle();
 bindEvents();
 startNewChallenge();
 
@@ -121,6 +117,9 @@ function setupMathFields() {
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
   disableMathFieldContextMenu(hintField);
+
+  notationHelp.classList.add("hidden");
+  inputTip.classList.add("hidden");
 
   applyAnswerKeybindings();
   configureAnswerVirtualKeyboard();
@@ -185,17 +184,19 @@ function applyAnswerKeybindings() {
   ];
 }
 
-function populateNotationSelector() {
-  notationSelect.innerHTML = NOTATIONS.map(
-    (notation) => `<option value="${notation.id}">${notation.label}</option>`,
-  ).join("");
-
-  notationSelect.value = state.notationId;
+function renderNotationToggle() {
+  notationToggle.classList.toggle("mode-aqa-active", state.notationId === "aqa");
+  notationToggle.classList.toggle("mode-ocr-active", state.notationId === "logic");
 }
 
 function bindEvents() {
-  notationSelect.addEventListener("change", () => {
-    state.notationId = notationSelect.value;
+  notationToggle.addEventListener("click", () => {
+    state.notationId = state.notationId === "aqa" ? "logic" : "aqa";
+    renderNotationToggle();
+    applyNotationMode();
+  });
+
+  const applyNotationMode = () => {
     renderNotationMeta();
     renderChallengeExpression();
     renderSubmissionHistory();
@@ -204,7 +205,7 @@ function bindEvents() {
     retranslateAnswerField();
     applyAnswerKeybindings();
     configureAnswerVirtualKeyboard();
-  });
+  };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
     startNewChallenge();
@@ -480,11 +481,14 @@ function startNewChallenge() {
     "neutral",
     [],
   );
+
+  requestAnimationFrame(() => {
+    answerField.focus({ preventScroll: true });
+  });
 }
 
 function renderNotationMeta() {
-  const notation = NOTATIONS.find((item) => item.id === state.notationId);
-  notationHelp.textContent = notation?.help ?? "";
+  notationHelp.textContent = "";
 }
 
 function renderChallengeExpression() {
@@ -529,10 +533,27 @@ function addEquivalentSubmission(ast) {
   const astSnapshot = JSON.parse(JSON.stringify(ast));
   state.equivalentSubmissions.push(astSnapshot);
   renderSubmissionHistory();
+  requestAnimationFrame(() => {
+    ensureAnswerPanelVisible();
+  });
   hintArea.classList.add("hidden");
   hintField.classList.add("hidden");
   setFieldValue(hintField, "");
   hintText.textContent = "";
+}
+
+function ensureAnswerPanelVisible() {
+  const target = answerPanel ?? answerField;
+  const rect = target.getBoundingClientRect();
+  const margin = 16;
+  const isVisible = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
+
+  if (!isVisible) {
+    target.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+  }
 }
 
 function renderReadonlyMathFieldLatex(field, latex) {
@@ -582,9 +603,6 @@ function formatAstForAnswerField(ast) {
 function renderHint() {
   const latestAst = state.equivalentSubmissions.at(-1) ?? null;
   const hintSourceAst = latestAst ?? state.challenge.initialAst;
-  const hintSourceLabel = latestAst
-    ? "your latest correct line"
-    : "the original challenge";
 
   const latestGateCount = gateCountAst(hintSourceAst);
   if (latestAst && latestGateCount <= state.challenge.minimalGateCount) {
@@ -610,7 +628,7 @@ function renderHint() {
     setFieldValue(hintField, "");
   }
 
-  hintText.textContent = `Hint based on ${hintSourceLabel}: ${hint.message}`;
+  hintText.textContent = hint.message;
 }
 
 function findGateReductionHint(ast) {
@@ -623,6 +641,22 @@ function findGateReductionHint(ast) {
       focusAst: ast,
       message: "This part has a double negation. Remove the two NOTs together.",
     };
+  }
+
+  if (ast.type === "not") {
+    const innerHint = findGateReductionHint(ast.expr);
+    if (innerHint) {
+      return innerHint;
+    }
+
+    if (ast.expr?.type === "or" || ast.expr?.type === "and") {
+      return {
+        focusAst: ast,
+        message: "Apply De Morgan's law to this negated bracket. That should open a simpler next step.",
+      };
+    }
+
+    return null;
   }
 
   if (ast.type === "or" || ast.type === "and") {
@@ -688,17 +722,6 @@ function findGateReductionHint(ast) {
           : "This matches absorption. Use X.(X + Y) = X.",
       };
     }
-  }
-
-  if (ast.type === "not" && (ast.expr?.type === "or" || ast.expr?.type === "and")) {
-    return {
-      focusAst: ast,
-      message: "Apply De Morgan's law to this negated bracket. That should open a simpler next step.",
-    };
-  }
-
-  if (ast.type === "not") {
-    return findGateReductionHint(ast.expr);
   }
 
   if (ast.type === "and" || ast.type === "or") {
@@ -795,14 +818,7 @@ function findAbsorptionMatch(operands, outerKind) {
 }
 
 function renderGateMetrics() {
-  initialGateCount.textContent = `Challenge gates: ${state.challenge.initialGateCount}`;
-  minimalGateCount.textContent = `Best possible: ${state.challenge.minimalGateCount}`;
-
-  if (state.bestEquivalent === null) {
-    equivalentBest.textContent = "Best equivalent so far: none";
-  } else {
-    equivalentBest.textContent = `Best equivalent so far: ${state.bestEquivalent}`;
-  }
+  minimalGateCount.textContent = `Target gates: ${state.challenge.minimalGateCount}`;
 }
 
 function insertOverbarPlaceholder() {
@@ -833,12 +849,7 @@ function insertOverbarPlaceholder() {
 }
 
 function renderTip() {
-  if (state.notationId === "aqa") {
-    inputTip.textContent = "Tip: Use overbar for NOT in AQA notation.";
-    return;
-  }
-
-  inputTip.textContent = "Tip: You can type logic symbols directly or use the on-screen keypad.";
+  inputTip.textContent = "";
 }
 
 function insertIntoAnswer(content) {
@@ -927,37 +938,30 @@ function checkAnswer() {
 
   renderGateMetrics();
 
-  const details = [
-    ["Equivalent", equivalent ? "Yes" : "No"],
-    ["Your gate count", String(studentGates)],
-    ["Challenge gate count", String(state.challenge.initialGateCount)],
-    ["Best possible", String(state.challenge.minimalGateCount)],
-  ];
-
   if (!equivalent) {
-    setFeedback("Not equivalent yet. Keep the same truth table while simplifying.", "error", details);
+    setFeedback("Not equivalent yet. Keep the same truth table while simplifying.", "error", []);
     return;
   }
 
   if (studentGates <= state.challenge.minimalGateCount) {
     state.solved = true;
-    setFeedback("Equivalent and minimal. You solved this challenge.", "success", details);
+    setFeedback("Equivalent and minimal. You solved this challenge.", "success", []);
     hintArea.classList.remove("hidden");
     renderHint();
     return;
   }
 
   if (studentGates < state.challenge.initialGateCount) {
-    setFeedback("Equivalent and simpler, but not yet minimal.", "good", details);
+    setFeedback("Equivalent and simpler, but not yet minimal.", "good", []);
     return;
   }
 
   if (studentGates === state.challenge.initialGateCount) {
-    setFeedback("Equivalent but same gate count. Try reducing further.", "warn", details);
+    setFeedback("Equivalent but same gate count. Try reducing further.", "warn", []);
     return;
   }
 
-  setFeedback("Equivalent but uses more gates. Try another simplification path.", "warn", details);
+  setFeedback("Equivalent but uses more gates. Try another simplification path.", "warn", []);
 }
 
 function setFeedback(summary, tone, detailRows) {
