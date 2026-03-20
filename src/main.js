@@ -29,6 +29,7 @@ root.innerHTML = `
         <button id="newChallengeBtn" class="ghost-btn">New challenge</button>
       </div>
       <math-field id="challengeField" read-only></math-field>
+      <div id="submissionHistory" class="submission-history hidden" aria-live="polite"></div>
       <div class="metrics">
         <span id="initialGateCount"></span>
         <span id="minimalGateCount"></span>
@@ -83,6 +84,7 @@ const equivalentBest = document.querySelector("#equivalentBest");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
+const submissionHistory = document.querySelector("#submissionHistory");
 const isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -90,6 +92,8 @@ const state = {
   challenge: null,
   solved: false,
   bestEquivalent: null,
+  equivalentSubmissions: [],
+  pendingTemplateExit: false,
 };
 
 let _originalKeybindings = null;
@@ -124,7 +128,11 @@ function setupMathFields() {
 
 function disableMathFieldContextMenu(field) {
   if ("menuItems" in field) {
-    field.menuItems = [];
+    try {
+      field.menuItems = [];
+    } catch {
+      // Some MathLive instances throw before mount; safe to skip.
+    }
   }
 
   field.addEventListener("contextmenu", (event) => {
@@ -190,6 +198,7 @@ function bindEvents() {
     state.notationId = notationSelect.value;
     renderNotationMeta();
     renderChallengeExpression();
+    renderSubmissionHistory();
     renderHint();
     renderTip();
     retranslateAnswerField();
@@ -228,6 +237,24 @@ function handleAnswerFieldKeydown(event) {
 
   const key = event.key;
   const isLogic = state.notationId === "logic";
+  const hasSelection = fieldHasSelection(answerField);
+
+  if (!isLogic && (key === "Backspace" || key === "Delete") && hasSelection) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    deferAnswerMutation(() => {
+      const deleteCommand = key === "Backspace" ? "deleteBackward" : "deleteForward";
+      if (typeof answerField.executeCommand === "function") {
+        answerField.executeCommand(deleteCommand);
+        // Mark for one-time escape before the next inserted token.
+        state.pendingTemplateExit = true;
+      }
+      answerField.focus({ preventScroll: true });
+    });
+    return;
+  }
+
   const passthroughKeys = new Set([
     "Backspace",
     "Delete",
@@ -278,7 +305,7 @@ function handleAnswerFieldKeydown(event) {
       event.preventDefault();
       event.stopImmediatePropagation();
       event.stopPropagation();
-      deferAnswerMutation(() => insertIntoAnswer(key));
+      deferAnswerMutation(() => insertAqaAwareToken(key));
       return;
     }
 
@@ -293,15 +320,7 @@ function handleAnswerFieldKeydown(event) {
       event.preventDefault();
       event.stopImmediatePropagation();
       event.stopPropagation();
-      deferAnswerMutation(() => insertIntoAnswer("."));
-      return;
-    }
-
-    if (key === "(" && state.notationId === "aqa") {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      event.stopPropagation();
-      deferAnswerMutation(() => insertIntoAnswer("("));
+      deferAnswerMutation(() => insertAqaAwareToken("."));
       return;
     }
 
@@ -326,7 +345,7 @@ function handleAnswerFieldKeydown(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
-    deferAnswerMutation(() => insertIntoAnswer(upper));
+    deferAnswerMutation(() => insertAqaAwareToken(upper));
     return;
   }
 
@@ -347,6 +366,28 @@ function deferAnswerMutation(action) {
   setTimeout(() => {
     action();
   }, 0);
+}
+
+function exitPlaceholderContext(field) {
+  if (typeof field.executeCommand !== "function") {
+    return;
+  }
+
+  for (let step = 0; step < 8; step += 1) {
+    const moved = field.executeCommand("moveToNextPlaceholder");
+    if (!moved) {
+      break;
+    }
+  }
+}
+
+function insertAqaAwareToken(content) {
+  if (state.notationId === "aqa" && state.pendingTemplateExit) {
+    exitPlaceholderContext(answerField);
+    state.pendingTemplateExit = false;
+  }
+
+  insertIntoAnswer(content);
 }
 
 function detectTouchDevice() {
@@ -422,12 +463,15 @@ function startNewChallenge() {
   state.challenge = randomChallenge();
   state.solved = false;
   state.bestEquivalent = null;
+  state.equivalentSubmissions = [];
 
-  setFieldValue(answerField, "");
+  const startingExpression = formatAstForAnswerField(state.challenge.initialAst);
+  setFieldValue(answerField, startingExpression);
   hintArea.classList.add("hidden");
 
   renderNotationMeta();
   renderChallengeExpression();
+  renderSubmissionHistory();
   renderGateMetrics();
   renderTip();
 
@@ -446,6 +490,68 @@ function renderNotationMeta() {
 function renderChallengeExpression() {
   const challengeLatex = astToLatex(state.challenge.initialAst, state.notationId);
   setFieldValue(challengeField, challengeLatex);
+}
+
+function renderSubmissionHistory() {
+  submissionHistory.innerHTML = "";
+
+  if (state.equivalentSubmissions.length === 0) {
+    submissionHistory.classList.add("hidden");
+    return;
+  }
+
+  submissionHistory.classList.remove("hidden");
+
+  for (const ast of state.equivalentSubmissions) {
+    const row = document.createElement("div");
+    row.className = "submission-row";
+
+    const symbol = document.createElement("span");
+    symbol.className = "equiv-symbol";
+    symbol.textContent = "≡";
+    row.appendChild(symbol);
+
+    const expressionField = document.createElement("math-field");
+    expressionField.className = "submission-item";
+    expressionField.setAttribute("default-mode", "math");
+    expressionField.setAttribute("read-only", "");
+    expressionField.setAttribute("math-virtual-keyboard-policy", "manual");
+    row.appendChild(expressionField);
+    submissionHistory.appendChild(row);
+
+    const latex = astToLatex(ast, state.notationId);
+    renderReadonlyMathFieldLatex(expressionField, latex);
+    disableMathFieldContextMenu(expressionField);
+  }
+}
+
+function addEquivalentSubmission(ast) {
+  const astSnapshot = JSON.parse(JSON.stringify(ast));
+  state.equivalentSubmissions.push(astSnapshot);
+  renderSubmissionHistory();
+}
+
+function renderReadonlyMathFieldLatex(field, latex) {
+  const assignLatex = () => {
+    try {
+      if (typeof field.setValue === "function") {
+        field.setValue(latex);
+        return;
+      }
+      field.value = latex;
+      field.setAttribute("value", latex);
+    } catch {
+      // If MathLive isn't mounted yet, later retries will populate content.
+    }
+  };
+
+  assignLatex();
+
+  queueMicrotask(assignLatex);
+  // MathLive custom elements can upgrade asynchronously; set again after mount.
+  requestAnimationFrame(() => {
+    assignLatex();
+  });
 }
 
 function retranslateAnswerField() {
@@ -588,6 +694,7 @@ function checkAnswer() {
   const studentGates = gateCountAst(ast);
 
   if (equivalent) {
+    addEquivalentSubmission(ast);
     if (state.bestEquivalent === null || studentGates < state.bestEquivalent) {
       state.bestEquivalent = studentGates;
     }

@@ -247,6 +247,49 @@ math-field {
   display: none;
 }
 
+.submission-history {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.submission-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.equiv-symbol {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-soft);
+}
+
+.submission-item {
+  min-height: 42px;
+  padding: 6px 8px;
+  font-size: 1.02rem;
+  color: var(--ink);
+  border-color: rgba(236, 243, 251, 0.17);
+  background: color-mix(in srgb, var(--surface) 78%, black 22%);
+}
+
+.submission-item::part(container) {
+  display: flex;
+  align-items: center;
+}
+
+.submission-item::part(content) {
+  transform: translateY(1px);
+}
+
+.submission-item::part(menu-toggle),
+.submission-item::part(virtual-keyboard-toggle),
+.submission-item::part(keyboard-toggle) {
+  display: none;
+}
+
 #answerField::part(menu-toggle) {
   display: none;
 }
