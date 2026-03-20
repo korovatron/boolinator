@@ -1,0 +1,11 @@
+{
+  "name": "boolinator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "description": "Static Boolinator app for Live Server and GitHub Pages"
+}

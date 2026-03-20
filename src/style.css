@@ -1,0 +1,426 @@
+@import url("https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --paper: #0d1219;
+  --ink: #ecf3fb;
+  --text-soft: #a8b6c6;
+  --accent: #24b6a5;
+  --accent-soft: #16393a;
+  --brand: #ff8a4c;
+  --brand-soft: #5a2f1d;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --panel-bg: rgba(17, 24, 33, 0.84);
+  --panel-border: rgba(236, 243, 251, 0.13);
+  --surface: #121a23;
+  --surface-elevated: #1a2430;
+  --surface-soft: #203040;
+  --radius: 18px;
+  --shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Chivo", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background-color: #0a0f14;
+}
+
+body {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 18% 18%, rgba(92, 161, 255, 0.3) 0, rgba(92, 161, 255, 0.13) 30%, transparent 56%),
+    radial-gradient(circle at 92% 12%, rgba(36, 182, 165, 0.28) 0, rgba(36, 182, 165, 0.12) 26%, transparent 50%),
+    linear-gradient(150deg, #0a0f14 0%, #111923 55%, #0f1620 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-size: cover, cover, cover;
+  background-attachment: fixed, fixed, fixed;
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 30px 18px 36px;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  animation: rise 420ms ease-out;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+  padding: 18px;
+}
+
+.hero {
+  grid-column: span 12;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -40px -62px auto;
+  width: 240px;
+  height: 240px;
+  border-radius: 32px;
+  background: linear-gradient(140deg, rgba(92, 161, 255, 0.22), rgba(36, 182, 165, 0.2));
+  transform: rotate(22deg);
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: #c1a384;
+}
+
+.hero h1 {
+  margin: 8px 0 4px;
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  letter-spacing: 0.01em;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 760px;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.challenge {
+  grid-column: span 12;
+}
+
+.answer {
+  grid-column: span 8;
+}
+
+.feedback {
+  grid-column: span 4;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tile-head h2 {
+  margin: 0;
+}
+
+.notation-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notation-inline label {
+  font-size: 0.84rem;
+  color: var(--text-soft);
+  margin: 0;
+}
+
+.notation-inline select {
+  min-width: 170px;
+}
+
+#notationHelp {
+  margin-top: 0;
+}
+
+.control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+select {
+  border-radius: 12px;
+  border: 1px solid rgba(236, 243, 251, 0.22);
+  padding: 9px 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.notation-help {
+  margin: 10px 0 14px;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  line-height: 1.35;
+}
+
+math-field {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(236, 243, 251, 0.24);
+  background: var(--surface);
+  color: var(--ink);
+  --caret-color: var(--brand);
+  --selection-background-color: rgba(36, 182, 165, 0.24);
+}
+
+#challengeField {
+  min-height: 88px;
+  padding: 12px;
+  font-size: 1.45rem;
+  text-align: center;
+}
+
+#challengeField::part(content) {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+  text-align: center;
+}
+
+#challengeField::part(container) {
+  justify-content: center;
+  align-items: center;
+}
+
+#challengeField::part(virtual-keyboard-toggle),
+#challengeField::part(menu-toggle) {
+  display: none;
+}
+
+#hintField {
+  min-height: 66px;
+  padding: 8px;
+}
+
+#answerField {
+  min-height: 74px;
+  margin-bottom: 10px;
+  padding: 8px;
+}
+
+.metrics {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metrics span {
+  font-family: "IBM Plex Mono", monospace;
+  background: var(--surface-elevated);
+  border: 1px solid rgba(236, 243, 251, 0.2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.key-btn,
+.primary-btn,
+.ghost-btn {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  padding: 10px 12px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.key-btn {
+  background: var(--surface-elevated);
+  border-color: rgba(236, 243, 251, 0.16);
+  color: var(--ink);
+}
+
+.key-btn:hover,
+.primary-btn:hover,
+.ghost-btn:hover {
+  transform: translateY(-1px);
+}
+
+.primary-btn {
+  background: linear-gradient(110deg, var(--brand), #ff6b3d);
+  color: #1a110a;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(255, 138, 76, 0.36);
+}
+
+.ghost-btn {
+  background: var(--surface-elevated);
+  border-color: rgba(236, 243, 251, 0.2);
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.feedback-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed rgba(236, 243, 251, 0.2);
+  padding-bottom: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
+}
+
+.feedback-details strong {
+  font-weight: 600;
+}
+
+.hint-area {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, black 54%);
+}
+
+.hint-area p {
+  margin: 0 0 8px;
+}
+
+.hint-text {
+  font-family: "IBM Plex Mono", monospace;
+  margin-top: 8px;
+}
+
+.hidden {
+  display: none;
+}
+
+.tone-neutral,
+.tone-good,
+.tone-warn,
+.tone-error,
+.tone-success {
+  margin: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.94rem;
+}
+
+.tone-neutral {
+  background: var(--surface);
+  border: 1px solid rgba(236, 243, 251, 0.18);
+}
+
+.tone-good {
+  background: rgba(36, 182, 165, 0.2);
+  border: 1px solid rgba(36, 182, 165, 0.48);
+}
+
+.tone-success {
+  background: rgba(42, 170, 90, 0.2);
+  border: 1px solid rgba(72, 214, 131, 0.46);
+}
+
+.tone-warn {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.tone-error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.48);
+}
+
+@media (max-width: 960px) {
+  .challenge,
+  .answer,
+  .feedback {
+    grid-column: span 12;
+  }
+
+  .tile-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .notation-inline {
+    width: 100%;
+  }
+
+  .notation-inline select {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .keypad {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  #app {
+    padding: 18px 12px 24px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  #challengeField {
+    min-height: 76px;
+    font-size: 1.22rem;
+  }
+
+  .keypad {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
