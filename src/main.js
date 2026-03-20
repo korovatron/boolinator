@@ -652,12 +652,24 @@ function insertIntoAnswer(content) {
   setFieldValue(answerField, `${current}${content}`);
 }
 
+function sanitizeLatex(latex) {
+  const emptyOverbar = /\\overline\{(\s|\\,)*\}/g;
+  let prev;
+  do {
+    prev = latex;
+    latex = latex.replace(emptyOverbar, "");
+  } while (latex !== prev);
+  return latex;
+}
+
 function checkAnswer() {
-  const source = getFieldValue(answerField).trim();
-  if (!source) {
+  const raw = getFieldValue(answerField).trim();
+  if (!raw) {
     setFeedback("Enter an expression before checking.", "warn", []);
     return;
   }
+  const source = sanitizeLatex(raw);
+  if (source !== raw) setFieldValue(answerField, source);
 
   let ast;
   try {
