@@ -105,9 +105,12 @@ const STYLE_PROFILES = [
   },
 ];
 
+const DEMORGAN_TARGET_RATE = 0.55;
+
 export function randomChallenge() {
   let bestCandidate = null;
   let bestScore = Number.POSITIVE_INFINITY;
+  const requireDeMorgan = Math.random() < DEMORGAN_TARGET_RATE;
 
   for (const tier of CHALLENGE_TIERS) {
     for (let attempt = 0; attempt < tier.attempts; attempt += 1) {
@@ -155,6 +158,10 @@ export function randomChallenge() {
         minimalGateCount: minimal.gateCount,
         minimalForm: minimal.form,
       };
+
+      if (requireDeMorgan && !hasGroupedNotExpression(candidate.initialAst)) {
+        continue;
+      }
 
       const score =
         challengePenalty(candidate, tier) +
@@ -206,6 +213,26 @@ function challengePenalty(candidate, tier) {
 
 function randomStyleProfile() {
   return STYLE_PROFILES[randomInt(0, STYLE_PROFILES.length - 1)];
+}
+
+function hasGroupedNotExpression(ast) {
+  if (!ast) {
+    return false;
+  }
+
+  if (ast.type === "not") {
+    const expr = ast.expr;
+    if (expr && (expr.type === "and" || expr.type === "or")) {
+      return true;
+    }
+    return hasGroupedNotExpression(expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return hasGroupedNotExpression(ast.left) || hasGroupedNotExpression(ast.right);
+  }
+
+  return false;
 }
 
 function buildStyledInitialAst(minimalAst, variables, tier, styleProfile) {
