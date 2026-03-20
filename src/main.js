@@ -560,9 +560,11 @@ function startNewChallenge() {
       [],
     );
 
-  requestAnimationFrame(() => {
-    answerField.focus({ preventScroll: true });
-  });
+    if (!isTouchDevice) {
+      requestAnimationFrame(() => {
+        answerField.focus({ preventScroll: true });
+      });
+    }
 }
 
 function renderNotationMeta() {
