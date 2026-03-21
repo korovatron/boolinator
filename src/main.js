@@ -118,6 +118,7 @@ const state = {
 };
 
 let _originalKeybindings = null;
+let _lastAnswerFocusAt = 0;
 
 /**
  * Protects math-field elements from auto-focus on iOS PWA
@@ -348,6 +349,11 @@ function bindEvents() {
       return;
     }
 
+    // Guard against the same tap sequence that just focused the field.
+    if (Date.now() - _lastAnswerFocusAt < 150) {
+      return;
+    }
+
     if (isEventInsideAnswerFieldOrKeyboard(event)) {
       return;
     }
@@ -370,6 +376,8 @@ function bindEvents() {
       return;
     }
 
+    _lastAnswerFocusAt = Date.now();
+
     // In installed iOS PWA mode, MathLive can miss auto-show on focus.
     // Force-show the keyboard when a touch device focuses the answer field.
     if (isTouchDevice && isPwaDisplayMode() && window.mathVirtualKeyboard) {
@@ -390,6 +398,26 @@ function isPwaDisplayMode() {
 
 function isEventInsideAnswerFieldOrKeyboard(event) {
   const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+  const target = event.target;
+
+  if (target === answerField) {
+    return true;
+  }
+
+  if (target instanceof Element) {
+    if (target.closest?.("#answerField")) {
+      return true;
+    }
+
+    const targetRoot = target.getRootNode?.();
+    if (targetRoot && targetRoot.host === answerField) {
+      return true;
+    }
+
+    if (target.closest?.(".ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
+      return true;
+    }
+  }
 
   if (path.includes(answerField)) {
     return true;
