@@ -92,7 +92,11 @@ body[data-theme="light"] .panel {
 #app {
   max-width: 1100px;
   margin: 0 auto;
-  padding: max(30px, env(safe-area-inset-top)) 18px 36px;
+  padding:
+    calc(30px + env(safe-area-inset-top))
+    calc(18px + env(safe-area-inset-right))
+    calc(36px + env(safe-area-inset-bottom))
+    calc(18px + env(safe-area-inset-left));
 }
 
 .shell {
