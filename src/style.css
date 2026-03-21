@@ -109,6 +109,10 @@ body[data-theme="light"] .panel {
   grid-column: span 12;
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(14px, 3vw, 28px);
   background: linear-gradient(130deg, #0a2d56 0%, #1178a5 55%, #0ea27f 100%);
   border-color: rgba(0, 216, 255, 0.45);
   box-shadow:
@@ -123,6 +127,32 @@ body[data-theme="light"] .hero {
   box-shadow:
     0 10px 22px rgba(20, 54, 82, 0.16),
     0 0 0 1px rgba(12, 130, 180, 0.24);
+}
+
+.hero-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hero-logo {
+  flex: 0 0 auto;
+  width: clamp(64px, 10vw, 116px);
+  max-width: 24%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.28));
+}
+
+.hero-logo-light {
+  display: none;
+}
+
+body[data-theme="light"] .hero-logo-dark {
+  display: none;
+}
+
+body[data-theme="light"] .hero-logo-light {
+  display: block;
 }
 
 .eyebrow {
@@ -858,6 +888,15 @@ body[data-theme="light"] .tone-error {
 
   #answerField {
     font-size: 1.08rem;
+  }
+
+  .hero {
+    align-items: flex-start;
+  }
+
+  .hero-logo {
+    width: clamp(56px, 16vw, 88px);
+    max-width: 26%;
   }
 }
 

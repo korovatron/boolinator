@@ -1,0 +1,23 @@
+{
+  "name": "Boolinator",
+  "short_name": "Boolinator",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#060c16",
+  "theme_color": "#0a2d56",
+  "icons": [
+    {
+      "src": "./images/theBoolinator192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./images/theBoolinator.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

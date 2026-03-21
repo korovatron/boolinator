@@ -10,6 +10,14 @@ import {
   randomChallenge,
 } from "./booleanEngine.js";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((error) => {
+      console.error("Service worker registration failed", error);
+    });
+  });
+}
+
 const root = document.querySelector("#app");
 
 root.innerHTML = `
@@ -28,10 +36,21 @@ root.innerHTML = `
     </div>
 
     <header class="hero panel">
-      <h1>Boolinator</h1>
-      <p class="subtitle">
-        Terminate those gates
-      </p>
+      <div class="hero-copy">
+        <h1>Boolinator</h1>
+      </div>
+      <img
+        class="hero-logo hero-logo-dark"
+        src="./images/theBoolinator.png"
+        alt="Boolinator"
+        decoding="async"
+      />
+      <img
+        class="hero-logo hero-logo-light"
+        src="./images/theBoolinatorLight.png"
+        alt="Boolinator"
+        decoding="async"
+      />
     </header>
 
     <section class="panel challenge">
