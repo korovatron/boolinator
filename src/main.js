@@ -419,6 +419,10 @@ function bindEvents() {
     }
 
     if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
+      // Reassert a real editable focus/caret before reopening the keyboard.
+      // Without this, iOS can leave the field visually focused but not writable.
+      answerField.focus({ preventScroll: true });
+
       try {
         window.mathVirtualKeyboard.show({ animate: true });
       } catch {
