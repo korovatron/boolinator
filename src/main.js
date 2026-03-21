@@ -326,12 +326,27 @@ function closeMathKeyboardAndClearFocus(duration = 500) {
   answerField.classList.remove("answer-field-focused");
 
   hideAnswerVirtualKeyboard();
+  forceAnswerFieldBlurReset();
 
   setTimeout(() => {
     mathFields.forEach((field) => {
       field.removeAttribute("data-blur-protected");
     });
   }, duration);
+}
+
+function forceAnswerFieldBlurReset() {
+  const blurOnce = () => {
+    try {
+      answerField.blur();
+    } catch {
+      // Ignore platform-specific blur failures.
+    }
+  };
+
+  blurOnce();
+  requestAnimationFrame(blurOnce);
+  setTimeout(blurOnce, 40);
 }
 
 function restoreAnswerFieldCaretToEnd() {
@@ -750,12 +765,23 @@ function bindEvents() {
     if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
       logKeyboardDebug("answer:reopen-request");
 
-      // Keep this in the direct tap path. Delayed reconnect can lose iOS focus privileges.
+      // Reset stale MathLive focus state, then immediately refocus/show in this tap path.
+      try {
+        answerField.blur();
+      } catch {
+        // Ignore blur failures; we'll still attempt a fresh focus.
+      }
+
       try {
         answerField.focus({ preventScroll: true });
       } catch {
         answerField.focus();
       }
+
+      logKeyboardDebug("answer:reopen-focus-attempt", {
+        realFocused: hasRealAnswerFieldFocus(),
+      });
+
       restoreAnswerFieldCaretToEnd();
       showAnswerVirtualKeyboard();
     }
