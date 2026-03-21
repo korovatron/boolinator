@@ -121,7 +121,7 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v29";
+const VK_DEBUG_OVERLAY_VERSION = "v30";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -778,12 +778,20 @@ function bindEvents() {
         answerField.focus();
       }
 
+      restoreAnswerFieldCaretToEnd();
+      const realFocused = hasRealAnswerFieldFocus();
+
       logKeyboardDebug("answer:reopen-focus-attempt", {
-        realFocused: hasRealAnswerFieldFocus(),
+        realFocused,
       });
 
-      restoreAnswerFieldCaretToEnd();
-      showAnswerVirtualKeyboard();
+      if (!realFocused) {
+        logKeyboardDebug("answer:reopen-fallback", { reason: "real focus missing" });
+        reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
+        return;
+      }
+
+      showAnswerVirtualKeyboard({ requireRealFocus: true });
     }
   };
 
