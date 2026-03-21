@@ -119,6 +119,7 @@ const state = {
 
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
+let lastOutsideBlurTimestamp = 0;
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -283,6 +284,10 @@ function logKeyboardDebug(eventName, details = null) {
   });
 }
 
+function hasRealAnswerFieldFocus() {
+  return document.activeElement === answerField;
+}
+
 /**
  * Protects math-field elements from auto-focus on iOS PWA
  * Prevents virtual keyboard from looping when dismissed
@@ -359,7 +364,7 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 
   const reconnectToken = ++answerFieldReconnectToken;
 
-  const reconnect = () => {
+  const reconnect = (attempt = 0) => {
     if (reconnectToken !== answerFieldReconnectToken) {
       return;
     }
@@ -378,14 +383,26 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 
     restoreAnswerFieldCaretToEnd();
 
-    if (reopenKeyboard) {
+    const realFocused = hasRealAnswerFieldFocus();
+    logKeyboardDebug("reconnect:focus-check", { attempt, realFocused });
+
+    if (!realFocused && attempt < 3) {
+      setTimeout(() => reconnect(attempt + 1), 30 * (attempt + 1));
+      return;
+    }
+
+    if (reopenKeyboard && realFocused) {
       showAnswerVirtualKeyboard();
+      return;
+    }
+
+    if (reopenKeyboard && !realFocused) {
+      logKeyboardDebug("reconnect:skip-show", { reason: "real focus missing" });
     }
   };
 
   requestAnimationFrame(() => {
     reconnect();
-    setTimeout(reconnect, 40);
   });
 }
 
@@ -395,20 +412,25 @@ function showAnswerVirtualKeyboard() {
     return;
   }
 
+  if (!hasRealAnswerFieldFocus()) {
+    try {
+      answerField.focus({ preventScroll: true });
+    } catch {
+      answerField.focus();
+    }
+
+    if (!hasRealAnswerFieldFocus()) {
+      logKeyboardDebug("keyboard:show:skip", { reason: "real focus missing" });
+      return;
+    }
+  }
+
   try {
     window.mathVirtualKeyboard.update(answerField);
     logKeyboardDebug("keyboard:update", { ok: true });
   } catch {
     // Some MathLive builds may not expose update().
     logKeyboardDebug("keyboard:update", { ok: false });
-  }
-
-  try {
-    window.mathVirtualKeyboard.connect();
-    logKeyboardDebug("keyboard:connect", { ok: true });
-  } catch {
-    // The shared keyboard may already be connected.
-    logKeyboardDebug("keyboard:connect", { ok: false });
   }
 
   if (typeof answerField.executeCommand === "function") {
@@ -445,14 +467,6 @@ function hideAnswerVirtualKeyboard() {
   } catch {
     window.mathVirtualKeyboard.hide();
     logKeyboardDebug("keyboard:hide", { mode: "global" });
-  }
-
-  try {
-    window.mathVirtualKeyboard.disconnect();
-    logKeyboardDebug("keyboard:disconnect", { ok: true });
-  } catch {
-    // The shared keyboard may already be disconnected.
-    logKeyboardDebug("keyboard:disconnect", { ok: false });
   }
 }
 
@@ -716,7 +730,8 @@ function bindEvents() {
       return;
     }
 
-    if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
+    const hasMathLiveFocus = Boolean(answerField.hasFocus && answerField.hasFocus());
+    if (!window.mathVirtualKeyboard.visible && (hasMathLiveFocus || !hasRealAnswerFieldFocus())) {
       logKeyboardDebug("answer:reopen-request");
       // iOS can leave MathLive visually focused but with a stale input target.
       // Force a real blur, then run the same reconnect path that resume uses.
@@ -788,6 +803,12 @@ function bindEvents() {
     if (isEventInsideAnswerFieldOrKeyboard(event)) {
       return;
     }
+
+    const now = performance.now();
+    if (now - lastOutsideBlurTimestamp < 120) {
+      return;
+    }
+    lastOutsideBlurTimestamp = now;
 
     logKeyboardDebug("answer:outside-blur", { target: describeElement(event.target) });
     closeMathKeyboardAndClearFocus();
