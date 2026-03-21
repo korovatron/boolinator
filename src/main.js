@@ -392,6 +392,20 @@ function bindEvents() {
       answerField.focus({ preventScroll: true });
     }
   });
+
+  // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
+  // Explicitly blur on true outside taps so keyboard closes consistently.
+  document.addEventListener("pointerdown", (event) => {
+    if (!answerField.hasFocus || !answerField.hasFocus()) {
+      return;
+    }
+
+    if (isEventInsideAnswerFieldOrKeyboard(event)) {
+      return;
+    }
+
+    answerField.blur();
+  }, true);
 }
 
 function shouldUseVirtualKeyboard() {
@@ -406,6 +420,35 @@ function isInstalledPwaMode() {
   return window.matchMedia?.("(display-mode: standalone)")?.matches
     || window.matchMedia?.("(display-mode: fullscreen)")?.matches
     || window.navigator.standalone === true;
+}
+
+function isEventInsideAnswerFieldOrKeyboard(event) {
+  const target = event.target;
+  if (target === answerField) {
+    return true;
+  }
+
+  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+  if (path.includes(answerField)) {
+    return true;
+  }
+
+  for (const node of path) {
+    if (!(node instanceof Element)) {
+      continue;
+    }
+
+    const root = node.getRootNode?.();
+    if (root && root.host === answerField) {
+      return true;
+    }
+
+    if (node.closest?.("#answerField, .ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function handleClipboardEvent(event) {
