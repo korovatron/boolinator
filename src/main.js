@@ -843,6 +843,28 @@ function findGateReductionHint(ast) {
           : "This matches absorption. Use `X.(X + Y) = X`.",
       };
     }
+
+    if (ast.type === "and") {
+      const distributionMatch = findDistributiveComplementMatch(operands);
+      if (distributionMatch) {
+        return {
+          focusAst: ast,
+          message:
+            "Two OR brackets share a common term, and the remaining terms are complements. Use distribution: `(X + Y).(X + Y') = X`.",
+        };
+      }
+    }
+
+    if (ast.type === "or") {
+      const dualDistributionMatch = findDualDistributiveComplementMatch(operands);
+      if (dualDistributionMatch) {
+        return {
+          focusAst: ast,
+          message:
+            "Two AND brackets share a common term, and the remaining terms are complements. Use distribution: `X.Y + X.Y' = X`.",
+        };
+      }
+    }
   }
 
   if (ast.type === "and" || ast.type === "or") {
@@ -931,6 +953,88 @@ function findAbsorptionMatch(operands, outerKind) {
       const innerOperands = flattenAssociative(other, innerKind);
       if (innerOperands.some((innerOperand) => astEquals(innerOperand, operand))) {
         return { keep: operand, drop: other };
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDistributiveComplementMatch(operands) {
+  for (let leftIndex = 0; leftIndex < operands.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < operands.length; rightIndex += 1) {
+      const left = operands[leftIndex];
+      const right = operands[rightIndex];
+
+      if (left?.type !== "or" || right?.type !== "or") {
+        continue;
+      }
+
+      const leftTerms = flattenAssociative(left, "or");
+      const rightTerms = flattenAssociative(right, "or");
+
+      for (let leftTermIndex = 0; leftTermIndex < leftTerms.length; leftTermIndex += 1) {
+        for (let rightTermIndex = 0; rightTermIndex < rightTerms.length; rightTermIndex += 1) {
+          if (!astEquals(leftTerms[leftTermIndex], rightTerms[rightTermIndex])) {
+            continue;
+          }
+
+          const leftRemainder = leftTerms.filter((_, index) => index !== leftTermIndex);
+          const rightRemainder = rightTerms.filter((_, index) => index !== rightTermIndex);
+
+          if (leftRemainder.length !== 1 || rightRemainder.length !== 1) {
+            continue;
+          }
+
+          if (isComplementPair(leftRemainder[0], rightRemainder[0])) {
+            return {
+              common: leftTerms[leftTermIndex],
+              leftRemainder: leftRemainder[0],
+              rightRemainder: rightRemainder[0],
+            };
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDualDistributiveComplementMatch(operands) {
+  for (let leftIndex = 0; leftIndex < operands.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < operands.length; rightIndex += 1) {
+      const left = operands[leftIndex];
+      const right = operands[rightIndex];
+
+      if (left?.type !== "and" || right?.type !== "and") {
+        continue;
+      }
+
+      const leftTerms = flattenAssociative(left, "and");
+      const rightTerms = flattenAssociative(right, "and");
+
+      for (let leftTermIndex = 0; leftTermIndex < leftTerms.length; leftTermIndex += 1) {
+        for (let rightTermIndex = 0; rightTermIndex < rightTerms.length; rightTermIndex += 1) {
+          if (!astEquals(leftTerms[leftTermIndex], rightTerms[rightTermIndex])) {
+            continue;
+          }
+
+          const leftRemainder = leftTerms.filter((_, index) => index !== leftTermIndex);
+          const rightRemainder = rightTerms.filter((_, index) => index !== rightTermIndex);
+
+          if (leftRemainder.length !== 1 || rightRemainder.length !== 1) {
+            continue;
+          }
+
+          if (isComplementPair(leftRemainder[0], rightRemainder[0])) {
+            return {
+              common: leftTerms[leftTermIndex],
+              leftRemainder: leftRemainder[0],
+              rightRemainder: rightRemainder[0],
+            };
+          }
+        }
       }
     }
   }
