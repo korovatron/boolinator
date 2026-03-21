@@ -73,6 +73,7 @@ root.innerHTML = `
       <math-field id="answerField" default-mode="math"></math-field>
       <div class="actions">
         <button id="clearBtn" class="ghost-btn">Clear</button>
+        <button id="keyboardBtn" class="ghost-btn">Keyboard</button>
         <button id="hintBtn" class="ghost-btn">Hint</button>
         <button id="checkBtn" class="primary-btn">Submit</button>
       </div>
@@ -120,9 +121,7 @@ const state = {
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
-let lastReopenRequestTimestamp = 0;
-let lastPointerReopenTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v34";
+const VK_DEBUG_OVERLAY_VERSION = "v37";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -436,9 +435,9 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 }
 
 function showAnswerVirtualKeyboard(options = {}) {
-  const { requireRealFocus = false } = options;
+  const { requireRealFocus = false, force = false } = options;
 
-  if (!answerField || !shouldUseVirtualKeyboard() || !window.mathVirtualKeyboard) {
+  if (!answerField || (!shouldUseVirtualKeyboard() && !force) || !window.mathVirtualKeyboard) {
     logKeyboardDebug("keyboard:show:skip", { reason: "keyboard unavailable" });
     return;
   }
@@ -501,6 +500,74 @@ function hideAnswerVirtualKeyboard() {
     window.mathVirtualKeyboard.hide();
     logKeyboardDebug("keyboard:hide", { mode: "global" });
   }
+}
+
+function updateManualKeyboardButtonLabel() {
+  const keyboardBtn = document.querySelector("#keyboardBtn");
+  if (!keyboardBtn) {
+    return;
+  }
+
+  const isVisible = Boolean(window.mathVirtualKeyboard?.visible);
+  keyboardBtn.textContent = isVisible ? "Hide Keyboard" : "Show Keyboard";
+}
+
+function toggleManualAnswerKeyboard() {
+  if (!window.mathVirtualKeyboard) {
+    return;
+  }
+
+  if (window.mathVirtualKeyboard.visible) {
+    closeMathKeyboardAndClearFocus(300);
+    updateManualKeyboardButtonLabel();
+    logKeyboardDebug("keyboard:manual-hide");
+    return;
+  }
+
+  // Manual reopen should not be blocked by previous close protection windows.
+  answerField.removeAttribute("data-blur-protected");
+
+  if (answerField.hasFocus && answerField.hasFocus() && !hasRealAnswerFieldFocus()) {
+    forceAnswerFieldBlurReset();
+  }
+
+  try {
+    answerField.focus({ preventScroll: true });
+  } catch {
+    answerField.focus();
+  }
+
+  restoreAnswerFieldCaretToEnd();
+  const realFocused = hasRealAnswerFieldFocus();
+  logKeyboardDebug("keyboard:manual-open-request", { realFocused });
+
+  if (!realFocused) {
+    requestAnimationFrame(() => {
+      try {
+        answerField.focus({ preventScroll: true });
+      } catch {
+        answerField.focus();
+      }
+
+      restoreAnswerFieldCaretToEnd();
+      const retryRealFocused = hasRealAnswerFieldFocus();
+      logKeyboardDebug("keyboard:manual-open-retry", { realFocused: retryRealFocused });
+
+      if (retryRealFocused) {
+        showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
+      } else if (shouldUseVirtualKeyboard()) {
+        reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
+      } else {
+        showAnswerVirtualKeyboard({ requireRealFocus: false, force: true });
+      }
+
+      updateManualKeyboardButtonLabel();
+    });
+    return;
+  }
+
+  showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
+  updateManualKeyboardButtonLabel();
 }
 
 initializeTheme();
@@ -649,6 +716,8 @@ function renderThemeToggle() {
 }
 
 function bindEvents() {
+  const keyboardBtn = document.querySelector("#keyboardBtn");
+
   themeToggle.addEventListener("click", () => {
     state.themeId = state.themeId === "dark" ? "light" : "dark";
     applyTheme();
@@ -697,6 +766,10 @@ function bindEvents() {
     protectFieldsFromAutoFocus(300);
     setFieldValue(answerField, "");
     answerField.focus();
+  });
+
+  keyboardBtn.addEventListener("click", () => {
+    toggleManualAnswerKeyboard();
   });
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
@@ -752,98 +825,7 @@ function bindEvents() {
     answerField.classList.add("answer-field-focused");
     restoreAnswerFieldCaretToEnd();
     logKeyboardDebug("answer:focusin");
-
-    // Use explicit field-driven keyboard control to keep MathLive's target in sync.
-    showAnswerVirtualKeyboard();
   });
-
-  // If the field is still focused but keyboard was dismissed, a tap should reopen it.
-  const reopenKeyboardIfFocused = (event) => {
-    if (!window.mathVirtualKeyboard || !shouldUseVirtualKeyboard()) {
-      return;
-    }
-
-    if (window.mathVirtualKeyboard.visible) {
-      return;
-    }
-
-    const now = performance.now();
-    const sourceType = event?.type ?? "unknown";
-
-    if (sourceType === "click" && now - lastPointerReopenTimestamp < 350) {
-      return;
-    }
-
-    if (sourceType === "pointerdown" || sourceType === "touchstart") {
-      lastPointerReopenTimestamp = now;
-    }
-
-    if (now - lastReopenRequestTimestamp < 120) {
-      return;
-    }
-    lastReopenRequestTimestamp = now;
-
-    const hasMathLiveFocus = Boolean(answerField.hasFocus && answerField.hasFocus());
-    if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
-      logKeyboardDebug("answer:reopen-request", { sourceType });
-
-      // Keep this as a pure focus recovery path; showing keyboard without real focus
-      // can produce iOS key sounds/error tones with no inserted text.
-      if (hasMathLiveFocus && !hasRealAnswerFieldFocus()) {
-        forceAnswerFieldBlurReset();
-      }
-
-      try {
-        answerField.focus({ preventScroll: true });
-      } catch {
-        answerField.focus();
-      }
-
-      restoreAnswerFieldCaretToEnd();
-      const realFocused = hasRealAnswerFieldFocus();
-
-      logKeyboardDebug("answer:reopen-focus-attempt", {
-        sourceType,
-        realFocused,
-      });
-
-      if (!realFocused) {
-        logKeyboardDebug("answer:reopen-fallback", {
-          reason: "real focus missing",
-          sourceType,
-        });
-
-        requestAnimationFrame(() => {
-          try {
-            answerField.focus({ preventScroll: true });
-          } catch {
-            answerField.focus();
-          }
-
-          restoreAnswerFieldCaretToEnd();
-          const retryRealFocused = hasRealAnswerFieldFocus();
-          logKeyboardDebug("answer:reopen-focus-retry", {
-            sourceType,
-            realFocused: retryRealFocused,
-          });
-
-          if (retryRealFocused) {
-            showAnswerVirtualKeyboard({ requireRealFocus: true });
-            return;
-          }
-
-          reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
-        });
-        return;
-      }
-
-      showAnswerVirtualKeyboard({ requireRealFocus: true });
-    }
-  };
-
-  answerField.addEventListener("pointerdown", reopenKeyboardIfFocused, true);
-  answerField.addEventListener("touchstart", reopenKeyboardIfFocused, true);
-  answerField.addEventListener("click", reopenKeyboardIfFocused, true);
 
   const recoverAnswerFieldAfterResume = () => {
     if (!shouldUseVirtualKeyboard()) {
@@ -886,6 +868,7 @@ function bindEvents() {
 
     window.mathVirtualKeyboard.addEventListener("virtual-keyboard-toggle", (event) => {
       logKeyboardDebug("vk:toggle", { visible: event?.detail?.visible ?? null });
+      updateManualKeyboardButtonLabel();
     });
 
     window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
@@ -919,6 +902,8 @@ function bindEvents() {
   document.addEventListener("mouseup", blurOnOutsideInteraction, true);
   document.addEventListener("touchend", blurOnOutsideInteraction, true);
   document.addEventListener("click", blurOnOutsideInteraction, true);
+
+  updateManualKeyboardButtonLabel();
 }
 
 function shouldUseVirtualKeyboard() {
@@ -941,6 +926,10 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
     return true;
   }
 
+  if (target instanceof Element && target.closest?.("#keyboardBtn")) {
+    return true;
+  }
+
   if (target instanceof Element) {
     const targetClassName = typeof target.className === "string" ? target.className : "";
     if (targetClassName.includes("MLK__") || targetClassName.includes("ML__")) {
@@ -956,6 +945,10 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
   for (const node of path) {
     if (!(node instanceof Element)) {
       continue;
+    }
+
+    if (node.closest?.("#keyboardBtn")) {
+      return true;
     }
 
     const root = node.getRootNode?.();
