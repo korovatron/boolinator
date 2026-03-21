@@ -142,6 +142,33 @@ function protectFieldsFromAutoFocus(duration = 500) {
   }
 }
 
+function closeMathKeyboardAndClearFocus(duration = 500) {
+  const mathFields = document.querySelectorAll("math-field");
+
+  mathFields.forEach((field) => {
+    if (field.hasFocus && field.hasFocus()) {
+      field.blur();
+    }
+    field.setAttribute("data-blur-protected", "true");
+  });
+
+  answerField.classList.remove("answer-field-focused");
+
+  if (window.mathVirtualKeyboard) {
+    try {
+      window.mathVirtualKeyboard.hide({ animate: true });
+    } catch {
+      window.mathVirtualKeyboard.hide();
+    }
+  }
+
+  setTimeout(() => {
+    mathFields.forEach((field) => {
+      field.removeAttribute("data-blur-protected");
+    });
+  }, duration);
+}
+
 initializeTheme();
 setupMathFields();
 renderThemeToggle();
@@ -342,7 +369,7 @@ function bindEvents() {
     checkAnswer();
     // Blur field to close keyboard after check
     if (answerField.hasFocus && answerField.hasFocus()) {
-      answerField.blur();
+      closeMathKeyboardAndClearFocus();
     }
   });
 
@@ -360,11 +387,6 @@ function bindEvents() {
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
     answerField.classList.remove("answer-field-focused");
-
-    // When focus leaves the field, close the virtual keyboard as well.
-    if (window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.hide({ animate: true });
-    }
   });
 
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
@@ -419,18 +441,7 @@ function bindEvents() {
       return;
     }
 
-    answerField.blur();
-    answerField.classList.remove("answer-field-focused");
-    if (window.mathVirtualKeyboard?.visible) {
-      window.mathVirtualKeyboard.hide({ animate: true });
-    }
-
-    // iOS can occasionally retain focus after blur when tapping non-focusable UI.
-    setTimeout(() => {
-      if (answerField.hasFocus && answerField.hasFocus()) {
-        answerField.blur();
-      }
-    }, 0);
+    closeMathKeyboardAndClearFocus();
   };
 
   document.addEventListener("pointerdown", blurOnOutsideInteraction, true);
