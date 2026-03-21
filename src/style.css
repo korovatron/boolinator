@@ -808,13 +808,9 @@ body[data-theme="light"] .hint-expression {
 }
 
 @media (max-width: 760px) {
-  .touch-keypad {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .touch-key {
-    min-height: 44px;
-    font-size: 0.95rem;
+    min-height: 38px;
+    font-size: 0.85rem;
   }
 }
 
