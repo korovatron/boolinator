@@ -121,7 +121,8 @@ const state = {
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v37";
+let suppressOutsideBlurUntil = 0;
+const VK_DEBUG_OVERLAY_VERSION = "v38";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -518,6 +519,7 @@ function toggleManualAnswerKeyboard() {
   }
 
   if (window.mathVirtualKeyboard.visible) {
+    suppressOutsideBlurUntil = performance.now() + 500;
     closeMathKeyboardAndClearFocus(300);
     updateManualKeyboardButtonLabel();
     logKeyboardDebug("keyboard:manual-hide");
@@ -530,6 +532,8 @@ function toggleManualAnswerKeyboard() {
   if (answerField.hasFocus && answerField.hasFocus() && !hasRealAnswerFieldFocus()) {
     forceAnswerFieldBlurReset();
   }
+
+  suppressOutsideBlurUntil = performance.now() + 500;
 
   try {
     answerField.focus({ preventScroll: true });
@@ -769,6 +773,8 @@ function bindEvents() {
   });
 
   keyboardBtn.addEventListener("click", () => {
+    suppressOutsideBlurUntil = performance.now() + 500;
+    logKeyboardDebug("keyboard:manual-toggle-click");
     toggleManualAnswerKeyboard();
   });
 
@@ -881,6 +887,10 @@ function bindEvents() {
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
   const blurOnOutsideInteraction = (event) => {
+    if (performance.now() < suppressOutsideBlurUntil) {
+      return;
+    }
+
     if (!answerField.hasFocus || !answerField.hasFocus()) {
       return;
     }
