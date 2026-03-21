@@ -121,7 +121,8 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v33";
+let lastPointerReopenTimestamp = 0;
+const VK_DEBUG_OVERLAY_VERSION = "v34";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -388,6 +389,17 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 
     if (answerField.getAttribute("data-blur-protected") === "true") {
       return;
+    }
+
+    // iOS can leave MathLive internally focused while DOM focus is on body.
+    // Clear stale internal focus once before retrying focus acquisition.
+    if (
+      attempt === 0
+      && answerField.hasFocus
+      && answerField.hasFocus()
+      && !hasRealAnswerFieldFocus()
+    ) {
+      forceAnswerFieldBlurReset();
     }
 
     answerField.classList.add("answer-field-focused");
@@ -756,18 +768,31 @@ function bindEvents() {
     }
 
     const now = performance.now();
+    const sourceType = event?.type ?? "unknown";
+
+    if (sourceType === "click" && now - lastPointerReopenTimestamp < 350) {
+      return;
+    }
+
+    if (sourceType === "pointerdown" || sourceType === "touchstart") {
+      lastPointerReopenTimestamp = now;
+    }
+
     if (now - lastReopenRequestTimestamp < 120) {
       return;
     }
     lastReopenRequestTimestamp = now;
 
-    const sourceType = event?.type ?? "unknown";
     const hasMathLiveFocus = Boolean(answerField.hasFocus && answerField.hasFocus());
     if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
       logKeyboardDebug("answer:reopen-request", { sourceType });
 
       // Keep this as a pure focus recovery path; showing keyboard without real focus
       // can produce iOS key sounds/error tones with no inserted text.
+      if (hasMathLiveFocus && !hasRealAnswerFieldFocus()) {
+        forceAnswerFieldBlurReset();
+      }
+
       try {
         answerField.focus({ preventScroll: true });
       } catch {
