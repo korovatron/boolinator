@@ -120,6 +120,8 @@ const state = {
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
+let lastReopenRequestTimestamp = 0;
+const VK_DEBUG_OVERLAY_VERSION = "v28";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -144,7 +146,7 @@ function createKeyboardDebugOverlay() {
   panel.className = "vk-debug-panel hidden";
   panel.innerHTML = `
     <header class="vk-debug-header">
-      <strong>Keyboard Debug</strong>
+      <strong>Keyboard Debug <span class="vk-debug-version">${VK_DEBUG_OVERLAY_VERSION}</span></strong>
       <div class="vk-debug-actions">
         <button type="button" data-vkdebug="copy">Copy</button>
         <button type="button" data-vkdebug="clear">Clear</button>
@@ -392,7 +394,7 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
     }
 
     if (reopenKeyboard && realFocused) {
-      showAnswerVirtualKeyboard();
+      showAnswerVirtualKeyboard({ requireRealFocus: true });
       return;
     }
 
@@ -406,7 +408,9 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
   });
 }
 
-function showAnswerVirtualKeyboard() {
+function showAnswerVirtualKeyboard(options = {}) {
+  const { requireRealFocus = false } = options;
+
   if (!answerField || !shouldUseVirtualKeyboard() || !window.mathVirtualKeyboard) {
     logKeyboardDebug("keyboard:show:skip", { reason: "keyboard unavailable" });
     return;
@@ -419,7 +423,9 @@ function showAnswerVirtualKeyboard() {
       answerField.focus();
     }
 
-    if (!hasRealAnswerFieldFocus()) {
+    restoreAnswerFieldCaretToEnd();
+
+    if (requireRealFocus && !hasRealAnswerFieldFocus()) {
       logKeyboardDebug("keyboard:show:skip", { reason: "real focus missing" });
       return;
     }
@@ -730,13 +736,28 @@ function bindEvents() {
       return;
     }
 
+    if (window.mathVirtualKeyboard.visible) {
+      return;
+    }
+
+    const now = performance.now();
+    if (now - lastReopenRequestTimestamp < 120) {
+      return;
+    }
+    lastReopenRequestTimestamp = now;
+
     const hasMathLiveFocus = Boolean(answerField.hasFocus && answerField.hasFocus());
-    if (!window.mathVirtualKeyboard.visible && (hasMathLiveFocus || !hasRealAnswerFieldFocus())) {
+    if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
       logKeyboardDebug("answer:reopen-request");
-      // iOS can leave MathLive visually focused but with a stale input target.
-      // Force a real blur, then run the same reconnect path that resume uses.
-      answerField.blur();
-      reconnectAnswerFieldInputTarget();
+
+      // Keep this in the direct tap path. Delayed reconnect can lose iOS focus privileges.
+      try {
+        answerField.focus({ preventScroll: true });
+      } catch {
+        answerField.focus();
+      }
+      restoreAnswerFieldCaretToEnd();
+      showAnswerVirtualKeyboard();
     }
   };
 

@@ -814,6 +814,12 @@ body[data-theme="light"] .hint-expression {
   font: 600 12px/1 "IBM Plex Mono", monospace;
 }
 
+.vk-debug-version {
+  margin-left: 6px;
+  color: #8fd8ff;
+  font-weight: 500;
+}
+
 .vk-debug-actions {
   display: inline-flex;
   gap: 6px;
