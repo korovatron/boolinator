@@ -477,9 +477,9 @@ function getTouchKeypadLayout() {
     { action: "NOT", label: isLogic ? "¬" : "NOT" },
     { action: "LPAREN", label: "(" },
     { action: "RPAREN", label: ")" },
-    { action: "LEFT", label: "←" },
-    { action: "RIGHT", label: "→" },
-    { action: "BACKSPACE", label: "⌫" },
+    { action: "LEFT", label: "◀", kind: "action" },
+    { action: "RIGHT", label: "▶", kind: "action" },
+    { action: "BACKSPACE", label: "⌫", kind: "action" },
   ];
 }
 
@@ -496,7 +496,7 @@ function renderTouchKeypad() {
 
   const keys = getTouchKeypadLayout();
   touchKeypad.innerHTML = keys
-    .map((key) => `<button type="button" class="touch-key" data-touch-key="${key.action}">${key.label}</button>`)
+    .map((key) => `<button type="button" class="touch-key${key.kind === "action" ? " touch-key--action" : ""}" data-touch-key="${key.action}">${key.label}</button>`)
     .join("");
   touchKeypad.classList.remove("hidden");
 }
