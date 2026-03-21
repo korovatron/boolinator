@@ -19,10 +19,19 @@
   --shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
   
   /* Safe area support for iOS notch/dynamic island */
-  --safe-area-top: env(safe-area-inset-top);
-  --safe-area-bottom: env(safe-area-inset-bottom);
-  --safe-area-left: env(safe-area-inset-left);
-  --safe-area-right: env(safe-area-inset-right);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+@supports (top: constant(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: constant(safe-area-inset-top);
+    --safe-area-bottom: constant(safe-area-inset-bottom);
+    --safe-area-left: constant(safe-area-inset-left);
+    --safe-area-right: constant(safe-area-inset-right);
+  }
 }
 
 * {
@@ -52,6 +61,7 @@ body {
 
 #app {
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -93,10 +103,10 @@ body[data-theme="light"] .panel {
   max-width: 1100px;
   margin: 0 auto;
   padding:
-    env(safe-area-inset-top)
-    calc(18px + env(safe-area-inset-right))
-    calc(36px + env(safe-area-inset-bottom))
-    calc(18px + env(safe-area-inset-left));
+    max(30px, calc(var(--safe-area-top) + 12px))
+    calc(18px + var(--safe-area-right))
+    calc(36px + var(--safe-area-bottom))
+    calc(18px + var(--safe-area-left));
 }
 
 .shell {
