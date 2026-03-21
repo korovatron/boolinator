@@ -187,12 +187,35 @@ function setupMathFields() {
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
   disableMathFieldContextMenu(hintField);
+  makeReadonlyMathFieldUnfocusable(challengeField);
+  makeReadonlyMathFieldUnfocusable(hintField);
 
   notationHelp.classList.add("hidden");
   inputTip.classList.add("hidden");
 
   applyAnswerKeybindings();
   configureAnswerVirtualKeyboard();
+}
+
+function makeReadonlyMathFieldUnfocusable(field) {
+  if (!field || !field.hasAttribute("read-only")) {
+    return;
+  }
+
+  // Keep readonly MathLive fields out of tab/focus flow on touch devices and PWA.
+  field.setAttribute("tabindex", "-1");
+
+  // If a readonly field is focused by the browser/MathLive internals, blur it.
+  field.addEventListener("focusin", () => {
+    if (field.hasFocus && field.hasFocus()) {
+      field.blur();
+    }
+  });
+
+  // Prevent readonly fields from grabbing focus/caret on taps.
+  field.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+  }, true);
 }
 
 function disableMathFieldContextMenu(field) {
@@ -788,6 +811,7 @@ function renderSubmissionHistory() {
     const latex = astToLatex(ast, state.notationId);
     renderReadonlyMathFieldLatex(expressionField, latex);
     disableMathFieldContextMenu(expressionField);
+    makeReadonlyMathFieldUnfocusable(expressionField);
   }
 }
 
