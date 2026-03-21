@@ -537,8 +537,44 @@ body[data-theme="light"] #hintField::part(content) {
     var(--surface-elevated);
 }
 
+.touch-key--action {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    var(--surface-elevated);
+  opacity: 0.72;
+}
+
+.touch-key--action:active {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.05)),
+    var(--surface-elevated);
+  opacity: 1;
+}
+
 body[data-theme="light"] .touch-key {
   border-color: rgba(16, 96, 146, 0.32);
+  background:
+    linear-gradient(145deg, rgba(0, 160, 210, 0.22), rgba(40, 200, 140, 0.18)),
+    var(--surface-elevated);
+}
+
+body[data-theme="light"] .touch-key:active {
+  background:
+    linear-gradient(145deg, rgba(0, 160, 210, 0.36), rgba(40, 200, 140, 0.30)),
+    var(--surface-elevated);
+}
+
+body[data-theme="light"] .touch-key--action {
+  background:
+    linear-gradient(145deg, rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.04)),
+    var(--surface-elevated);
+  opacity: 1;
+}
+
+body[data-theme="light"] .touch-key--action:active {
+  background:
+    linear-gradient(145deg, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0.09)),
+    var(--surface-elevated);
 }
 
 body[data-theme="light"] #answerField {
