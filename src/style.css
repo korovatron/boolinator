@@ -769,6 +769,74 @@ body[data-theme="light"] .hint-expression {
   display: none;
 }
 
+.vk-debug-toggle {
+  position: fixed;
+  left: max(10px, var(--safe-area-left, 0px));
+  bottom: max(10px, var(--safe-area-bottom, 0px));
+  z-index: 10020;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, #000 45%);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--surface-elevated) 82%, #000 18%);
+  color: var(--ink);
+  font: 600 12px/1 "IBM Plex Mono", monospace;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.vk-debug-toggle.is-active {
+  border-color: color-mix(in srgb, var(--brand) 64%, #000 36%);
+  background: color-mix(in srgb, var(--brand) 28%, var(--surface-elevated) 72%);
+}
+
+.vk-debug-panel {
+  position: fixed;
+  left: max(10px, var(--safe-area-left, 0px));
+  right: max(10px, var(--safe-area-right, 0px));
+  top: calc(max(10px, var(--safe-area-top, 0px)) + 6px);
+  z-index: 10030;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, #000 52%);
+  border-radius: 12px;
+  background: rgba(4, 12, 22, 0.96);
+  color: #d8efff;
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.5);
+  max-height: min(56vh, 420px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.vk-debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(154, 176, 202, 0.34);
+  font: 600 12px/1 "IBM Plex Mono", monospace;
+}
+
+.vk-debug-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.vk-debug-actions button {
+  border: 1px solid rgba(154, 176, 202, 0.5);
+  border-radius: 7px;
+  padding: 4px 6px;
+  background: rgba(16, 29, 48, 0.95);
+  color: #d8efff;
+  font: 500 11px/1 "IBM Plex Mono", monospace;
+}
+
+.vk-debug-log {
+  margin: 0;
+  padding: 8px 10px 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 11px/1.35 "IBM Plex Mono", monospace;
+}
+
 .tone-neutral,
 .tone-info,
 .tone-good,

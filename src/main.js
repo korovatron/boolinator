@@ -119,6 +119,169 @@ const state = {
 
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
+const keyboardDebug = createKeyboardDebugOverlay();
+
+function createKeyboardDebugOverlay() {
+  if (typeof document === "undefined") {
+    return {
+      isEnabled: () => false,
+      log: () => {},
+    };
+  }
+
+  const maxLines = 200;
+  const lines = [];
+  let enabled = false;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "vk-debug-toggle";
+  toggle.textContent = "VK Debug";
+  toggle.setAttribute("aria-label", "Toggle keyboard debug panel");
+
+  const panel = document.createElement("section");
+  panel.className = "vk-debug-panel hidden";
+  panel.innerHTML = `
+    <header class="vk-debug-header">
+      <strong>Keyboard Debug</strong>
+      <div class="vk-debug-actions">
+        <button type="button" data-vkdebug="copy">Copy</button>
+        <button type="button" data-vkdebug="clear">Clear</button>
+        <button type="button" data-vkdebug="close">Close</button>
+      </div>
+    </header>
+    <pre class="vk-debug-log" aria-live="polite"></pre>
+  `;
+
+  const logEl = panel.querySelector(".vk-debug-log");
+
+  const render = () => {
+    logEl.textContent = lines.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  const setEnabled = (next) => {
+    enabled = Boolean(next);
+    panel.classList.toggle("hidden", !enabled);
+    toggle.classList.toggle("is-active", enabled);
+    toggle.textContent = enabled ? "VK Debug ON" : "VK Debug";
+
+    try {
+      window.localStorage.setItem("boolinator-vk-debug", enabled ? "1" : "0");
+    } catch {
+      // Ignore storage errors.
+    }
+  };
+
+  const appendLine = (line) => {
+    lines.push(line);
+    if (lines.length > maxLines) {
+      lines.splice(0, lines.length - maxLines);
+    }
+    render();
+  };
+
+  toggle.addEventListener("click", () => {
+    setEnabled(!enabled);
+    if (enabled) {
+      appendLine("--- debug panel opened ---");
+    }
+  });
+
+  panel.addEventListener("click", async (event) => {
+    const action = event.target?.getAttribute?.("data-vkdebug");
+    if (!action) {
+      return;
+    }
+
+    if (action === "clear") {
+      lines.length = 0;
+      render();
+      appendLine("--- log cleared ---");
+      return;
+    }
+
+    if (action === "close") {
+      setEnabled(false);
+      return;
+    }
+
+    if (action === "copy") {
+      const payload = lines.join("\n");
+      try {
+        await navigator.clipboard.writeText(payload);
+        appendLine("[info] copied log to clipboard");
+      } catch {
+        appendLine("[warn] clipboard copy failed");
+      }
+    }
+  });
+
+  document.body.append(toggle, panel);
+
+  try {
+    const saved = window.localStorage.getItem("boolinator-vk-debug") === "1";
+    const forced = new URLSearchParams(window.location.search).get("vkdebug") === "1";
+    if (saved || forced) {
+      setEnabled(true);
+      appendLine("--- debug panel auto-enabled ---");
+    }
+  } catch {
+    // Ignore query/storage errors.
+  }
+
+  return {
+    isEnabled: () => enabled,
+    log: (eventName, details = null) => {
+      if (!enabled) {
+        return;
+      }
+
+      const stamp = new Date().toISOString().slice(11, 23);
+      if (details && Object.keys(details).length > 0) {
+        appendLine(`[${stamp}] ${eventName} ${JSON.stringify(details)}`);
+        return;
+      }
+      appendLine(`[${stamp}] ${eventName}`);
+    },
+  };
+}
+
+function describeElement(element) {
+  if (!element || !(element instanceof Element)) {
+    return "none";
+  }
+
+  const tag = element.tagName?.toLowerCase?.() ?? "unknown";
+  const id = element.id ? `#${element.id}` : "";
+  const cls = typeof element.className === "string" && element.className
+    ? `.${element.className.trim().split(/\s+/).slice(0, 2).join(".")}`
+    : "";
+  return `${tag}${id}${cls}`;
+}
+
+function getAnswerFieldDebugSnapshot() {
+  const ranges = answerField?.selection?.ranges;
+  return {
+    hasFocus: Boolean(answerField?.hasFocus?.()),
+    activeElement: describeElement(document.activeElement),
+    vkVisible: Boolean(window.mathVirtualKeyboard?.visible),
+    blurProtected: answerField?.getAttribute?.("data-blur-protected") === "true",
+    valueLength: getFieldValue(answerField).length,
+    selection: Array.isArray(ranges) ? ranges.slice(0, 2) : null,
+  };
+}
+
+function logKeyboardDebug(eventName, details = null) {
+  if (!keyboardDebug.isEnabled()) {
+    return;
+  }
+
+  keyboardDebug.log(eventName, {
+    ...getAnswerFieldDebugSnapshot(),
+    ...(details ?? {}),
+  });
+}
 
 /**
  * Protects math-field elements from auto-focus on iOS PWA
@@ -182,11 +345,15 @@ function restoreAnswerFieldCaretToEnd() {
 }
 
 function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
+  logKeyboardDebug("reconnect:start", { reopenKeyboard });
+
   if (!answerField || !shouldUseVirtualKeyboard()) {
+    logKeyboardDebug("reconnect:skip", { reason: "keyboard unavailable" });
     return;
   }
 
   if (answerField.getAttribute("data-blur-protected") === "true") {
+    logKeyboardDebug("reconnect:skip", { reason: "blur protected" });
     return;
   }
 
@@ -224,23 +391,29 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 
 function showAnswerVirtualKeyboard() {
   if (!answerField || !shouldUseVirtualKeyboard() || !window.mathVirtualKeyboard) {
+    logKeyboardDebug("keyboard:show:skip", { reason: "keyboard unavailable" });
     return;
   }
 
   try {
     window.mathVirtualKeyboard.update(answerField);
+    logKeyboardDebug("keyboard:update", { ok: true });
   } catch {
     // Some MathLive builds may not expose update().
+    logKeyboardDebug("keyboard:update", { ok: false });
   }
 
   try {
     window.mathVirtualKeyboard.connect();
+    logKeyboardDebug("keyboard:connect", { ok: true });
   } catch {
     // The shared keyboard may already be connected.
+    logKeyboardDebug("keyboard:connect", { ok: false });
   }
 
   if (typeof answerField.executeCommand === "function") {
     const shown = answerField.executeCommand("showVirtualKeyboard");
+    logKeyboardDebug("keyboard:execute:showVirtualKeyboard", { shown });
     if (shown) {
       return;
     }
@@ -248,30 +421,38 @@ function showAnswerVirtualKeyboard() {
 
   try {
     window.mathVirtualKeyboard.show({ animate: true });
+    logKeyboardDebug("keyboard:show", { mode: "global-animate" });
   } catch {
     window.mathVirtualKeyboard.show();
+    logKeyboardDebug("keyboard:show", { mode: "global" });
   }
 }
 
 function hideAnswerVirtualKeyboard() {
   if (!window.mathVirtualKeyboard) {
+    logKeyboardDebug("keyboard:hide:skip", { reason: "keyboard unavailable" });
     return;
   }
 
   if (typeof answerField?.executeCommand === "function") {
-    answerField.executeCommand("hideVirtualKeyboard");
+    const hidden = answerField.executeCommand("hideVirtualKeyboard");
+    logKeyboardDebug("keyboard:execute:hideVirtualKeyboard", { hidden });
   }
 
   try {
     window.mathVirtualKeyboard.hide({ animate: true });
+    logKeyboardDebug("keyboard:hide", { mode: "global-animate" });
   } catch {
     window.mathVirtualKeyboard.hide();
+    logKeyboardDebug("keyboard:hide", { mode: "global" });
   }
 
   try {
     window.mathVirtualKeyboard.disconnect();
+    logKeyboardDebug("keyboard:disconnect", { ok: true });
   } catch {
     // The shared keyboard may already be disconnected.
+    logKeyboardDebug("keyboard:disconnect", { ok: false });
   }
 }
 
@@ -489,8 +670,25 @@ function bindEvents() {
   document.addEventListener("copy", handleClipboardEvent, true);
   document.addEventListener("cut", handleClipboardEvent, true);
 
+  answerField.addEventListener("beforeinput", (event) => {
+    logKeyboardDebug("answer:beforeinput", { inputType: event.inputType, data: event.data ?? null });
+  });
+
+  answerField.addEventListener("input", (event) => {
+    logKeyboardDebug("answer:input", { inputType: event.inputType, data: event.data ?? null });
+  });
+
+  answerField.addEventListener("selection-change", () => {
+    logKeyboardDebug("answer:selection-change");
+  });
+
+  answerField.addEventListener("keydown", (event) => {
+    logKeyboardDebug("answer:keydown", { key: event.key, code: event.code });
+  }, true);
+
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
+    logKeyboardDebug("answer:blur");
     answerField.classList.remove("answer-field-focused");
   });
 
@@ -506,6 +704,7 @@ function bindEvents() {
 
     answerField.classList.add("answer-field-focused");
     restoreAnswerFieldCaretToEnd();
+    logKeyboardDebug("answer:focusin");
 
     // Use explicit field-driven keyboard control to keep MathLive's target in sync.
     showAnswerVirtualKeyboard();
@@ -518,6 +717,7 @@ function bindEvents() {
     }
 
     if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
+      logKeyboardDebug("answer:reopen-request");
       // iOS can leave MathLive visually focused but with a stale input target.
       // Force a real blur, then run the same reconnect path that resume uses.
       answerField.blur();
@@ -538,25 +738,45 @@ function bindEvents() {
     }
 
     reconnectAnswerFieldInputTarget();
+    logKeyboardDebug("app:resume-reconnect");
   };
 
   document.addEventListener("visibilitychange", () => {
+    logKeyboardDebug("app:visibilitychange", { state: document.visibilityState });
     if (document.visibilityState === "visible") {
       setTimeout(recoverAnswerFieldAfterResume, 0);
     }
   });
 
   window.addEventListener("focus", () => {
+    logKeyboardDebug("app:window-focus", { state: document.visibilityState });
     if (document.visibilityState === "visible") {
       setTimeout(recoverAnswerFieldAfterResume, 0);
     }
   });
 
   window.addEventListener("pageshow", () => {
+    logKeyboardDebug("app:pageshow", { state: document.visibilityState });
     if (document.visibilityState === "visible") {
       setTimeout(recoverAnswerFieldAfterResume, 0);
     }
   });
+
+  if (window.mathVirtualKeyboard?.addEventListener) {
+    window.mathVirtualKeyboard.addEventListener("before-virtual-keyboard-toggle", (event) => {
+      logKeyboardDebug("vk:before-toggle", { visible: event?.detail?.visible ?? null });
+    });
+
+    window.mathVirtualKeyboard.addEventListener("virtual-keyboard-toggle", (event) => {
+      logKeyboardDebug("vk:toggle", { visible: event?.detail?.visible ?? null });
+    });
+
+    window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
+      logKeyboardDebug("vk:geometrychange", {
+        height: Math.round(window.mathVirtualKeyboard.boundingRect?.height ?? 0),
+      });
+    });
+  }
 
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
@@ -569,6 +789,7 @@ function bindEvents() {
       return;
     }
 
+    logKeyboardDebug("answer:outside-blur", { target: describeElement(event.target) });
     closeMathKeyboardAndClearFocus();
   };
 
