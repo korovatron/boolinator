@@ -772,13 +772,13 @@ function bindEvents() {
     }
 
     answerField.classList.add("answer-field-focused");
-    restoreAnswerFieldCaretToEnd();
     logKeyboardDebug("answer:focusin");
 
     if (shouldUseCustomTouchKeypad()) {
       return;
     }
 
+    restoreAnswerFieldCaretToEnd();
     tryShowKeyboardForOpenRequest(answerOpenRequestToken, "focusin");
   });
 
@@ -848,7 +848,7 @@ function bindEvents() {
       } catch {
         answerField.focus();
       }
-      restoreAnswerFieldCaretToEnd();
+      // Do not force caret to end — let MathLive's tap hit-test place it where the user tapped.
       return;
     }
 
