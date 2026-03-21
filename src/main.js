@@ -491,7 +491,6 @@ function bindEvents() {
 
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
-    retranslateAnswerField();
     answerField.classList.remove("answer-field-focused");
   });
 
