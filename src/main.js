@@ -105,7 +105,7 @@ const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
 const submissionHistory = document.querySelector("#submissionHistory");
-const isTouchDevice = detectTouchDevice();
+let isTouchDevice = detectTouchDevice();
 
 const state = {
   themeId: "dark",
@@ -167,18 +167,21 @@ function applyTheme() {
 }
 
 function setupMathFields() {
+  isTouchDevice = detectTouchDevice();
+  const useVirtualKeyboard = shouldUseVirtualKeyboard();
+
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
-  answerField.mathVirtualKeyboardPolicy = isTouchDevice ? "auto" : "manual";
+  answerField.mathVirtualKeyboardPolicy = useVirtualKeyboard ? "auto" : "manual";
   answerField.setAttribute(
     "math-virtual-keyboard-policy",
-    isTouchDevice ? "auto" : "manual",
+    useVirtualKeyboard ? "auto" : "manual",
   );
   answerField.setAttribute(
     "virtual-keyboard-mode",
-    isTouchDevice ? "onfocus" : "manual",
+    useVirtualKeyboard ? "onfocus" : "manual",
   );
 
   disableMathFieldContextMenu(challengeField);
@@ -333,6 +336,7 @@ function bindEvents() {
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
+    answerField.classList.remove("answer-field-focused");
 
     // When focus leaves the field, close the virtual keyboard as well.
     if (window.mathVirtualKeyboard) {
@@ -350,12 +354,36 @@ function bindEvents() {
       return;
     }
 
+    answerField.classList.add("answer-field-focused");
+
     // Always show MathLive keyboard on focus for touch devices.
     // This is more reliable than auto policy in iOS Safari + PWA modes.
-    if (isTouchDevice && window.mathVirtualKeyboard) {
+    if (shouldUseVirtualKeyboard() && window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.show();
     }
   });
+
+  // In some touch/PWA contexts, taps edit content but host focus visuals lag.
+  // For reliability, force host focus when user taps the field.
+  answerField.addEventListener("click", () => {
+    if (!answerField.hasFocus || !answerField.hasFocus()) {
+      answerField.focus({ preventScroll: true });
+    }
+  });
+}
+
+function shouldUseVirtualKeyboard() {
+  return detectTouchDevice() || isInstalledPwaMode();
+}
+
+function isInstalledPwaMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+    || window.navigator.standalone === true;
 }
 
 function handleClipboardEvent(event) {

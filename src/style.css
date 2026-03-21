@@ -501,6 +501,12 @@ body[data-theme="light"] #hintField::part(content) {
   outline: none !important;
 }
 
+#answerField.answer-field-focused {
+  border-color: var(--answer-border-focused) !important;
+  box-shadow: 0 0 0 1px var(--answer-glow-focused) !important;
+  outline: none !important;
+}
+
 body[data-theme="light"] #answerField {
   --answer-border-unfocused: rgba(16, 96, 146, 0.38);
   --answer-glow-unfocused: rgba(16, 96, 146, 0.18);
