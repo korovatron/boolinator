@@ -437,16 +437,20 @@ function bindEvents() {
     }
 
     if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
-      // Reassert a real editable focus/caret before reopening the keyboard.
-      // Without this, iOS can leave the field visually focused but not writable.
-      answerField.focus({ preventScroll: true });
-      restoreAnswerFieldCaretToEnd();
+      // iOS can leave MathLive visually focused but with a stale input target.
+      // Force a real blur/refocus cycle before reopening the keyboard.
+      answerField.blur();
 
-      try {
-        window.mathVirtualKeyboard.show({ animate: true });
-      } catch {
-        window.mathVirtualKeyboard.show();
-      }
+      requestAnimationFrame(() => {
+        answerField.focus({ preventScroll: true });
+        restoreAnswerFieldCaretToEnd();
+
+        try {
+          window.mathVirtualKeyboard.show({ animate: true });
+        } catch {
+          window.mathVirtualKeyboard.show();
+        }
+      });
     }
   };
 
