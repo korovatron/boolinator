@@ -93,7 +93,7 @@ body[data-theme="light"] .panel {
   max-width: 1100px;
   margin: 0 auto;
   padding:
-    0
+    env(safe-area-inset-top)
     calc(18px + env(safe-area-inset-right))
     calc(36px + env(safe-area-inset-bottom))
     calc(18px + env(safe-area-inset-left));
@@ -157,9 +157,6 @@ body[data-theme="light"] .hero-controls .mode-toggle .mode-divider {
   align-items: center;
   justify-content: space-between;
   gap: clamp(14px, 3vw, 28px);
-  padding-top: max(18px, calc(env(safe-area-inset-top) + 10px));
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
   background: linear-gradient(130deg, #0a2d56 0%, #1178a5 55%, #0ea27f 100%);
   border-color: rgba(0, 216, 255, 0.45);
   box-shadow:
