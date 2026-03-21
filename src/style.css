@@ -812,7 +812,6 @@ body[data-theme="light"] .hint-expression {
     margin-bottom: 0 !important;
   }
 }
-}
 
 body:not([data-theme="light"]) .tone-info {
   background: color-mix(in srgb, var(--brand) 18%, var(--surface) 82%);
