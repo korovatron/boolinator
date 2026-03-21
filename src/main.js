@@ -121,7 +121,7 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v32";
+const VK_DEBUG_OVERLAY_VERSION = "v33";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -403,8 +403,8 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
     const realFocused = hasRealAnswerFieldFocus();
     logKeyboardDebug("reconnect:focus-check", { attempt, realFocused });
 
-    if (!realFocused && attempt < 3) {
-      setTimeout(() => reconnect(attempt + 1), 30 * (attempt + 1));
+    if (!realFocused && attempt < 4) {
+      setTimeout(() => reconnect(attempt + 1), 40 * (attempt + 1));
       return;
     }
 
@@ -746,7 +746,7 @@ function bindEvents() {
   });
 
   // If the field is still focused but keyboard was dismissed, a tap should reopen it.
-  const reopenKeyboardIfFocused = () => {
+  const reopenKeyboardIfFocused = (event) => {
     if (!window.mathVirtualKeyboard || !shouldUseVirtualKeyboard()) {
       return;
     }
@@ -761,9 +761,10 @@ function bindEvents() {
     }
     lastReopenRequestTimestamp = now;
 
+    const sourceType = event?.type ?? "unknown";
     const hasMathLiveFocus = Boolean(answerField.hasFocus && answerField.hasFocus());
     if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
-      logKeyboardDebug("answer:reopen-request");
+      logKeyboardDebug("answer:reopen-request", { sourceType });
 
       // Keep this as a pure focus recovery path; showing keyboard without real focus
       // can produce iOS key sounds/error tones with no inserted text.
@@ -777,12 +778,37 @@ function bindEvents() {
       const realFocused = hasRealAnswerFieldFocus();
 
       logKeyboardDebug("answer:reopen-focus-attempt", {
+        sourceType,
         realFocused,
       });
 
       if (!realFocused) {
-        logKeyboardDebug("answer:reopen-fallback", { reason: "real focus missing" });
-        reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
+        logKeyboardDebug("answer:reopen-fallback", {
+          reason: "real focus missing",
+          sourceType,
+        });
+
+        requestAnimationFrame(() => {
+          try {
+            answerField.focus({ preventScroll: true });
+          } catch {
+            answerField.focus();
+          }
+
+          restoreAnswerFieldCaretToEnd();
+          const retryRealFocused = hasRealAnswerFieldFocus();
+          logKeyboardDebug("answer:reopen-focus-retry", {
+            sourceType,
+            realFocused: retryRealFocused,
+          });
+
+          if (retryRealFocused) {
+            showAnswerVirtualKeyboard({ requireRealFocus: true });
+            return;
+          }
+
+          reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
+        });
         return;
       }
 
@@ -792,6 +818,7 @@ function bindEvents() {
 
   answerField.addEventListener("pointerdown", reopenKeyboardIfFocused, true);
   answerField.addEventListener("touchstart", reopenKeyboardIfFocused, true);
+  answerField.addEventListener("click", reopenKeyboardIfFocused, true);
 
   const recoverAnswerFieldAfterResume = () => {
     if (!shouldUseVirtualKeyboard()) {
