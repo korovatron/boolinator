@@ -340,7 +340,7 @@ function bindEvents() {
 
     // When focus leaves the field, close the virtual keyboard as well.
     if (window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.hide();
+      window.mathVirtualKeyboard.hide({ animate: true });
     }
   });
 
@@ -359,7 +359,7 @@ function bindEvents() {
     // Always show MathLive keyboard on focus for touch devices.
     // This is more reliable than auto policy in iOS Safari + PWA modes.
     if (shouldUseVirtualKeyboard() && window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.show();
+      window.mathVirtualKeyboard.show({ animate: true });
     }
   });
 
@@ -379,7 +379,7 @@ function bindEvents() {
     if (!answerField.hasFocus || !answerField.hasFocus()) {
       answerField.focus({ preventScroll: true });
     }
-    window.mathVirtualKeyboard.show();
+    window.mathVirtualKeyboard.show({ animate: true });
   };
 
   answerField.addEventListener("pointerdown", forceKeyboardOnTouchLikeInteraction, true);
