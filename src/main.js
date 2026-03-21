@@ -363,6 +363,28 @@ function bindEvents() {
     }
   });
 
+  // Desktop touch emulation fallback: force host focus + keyboard on touch-like pointer.
+  const forceKeyboardOnTouchLikeInteraction = (event) => {
+    if (!window.mathVirtualKeyboard) {
+      return;
+    }
+
+    const pointerType = event?.pointerType;
+    const touchLikePointer = pointerType === "touch" || pointerType === "pen";
+    if (!touchLikePointer && !shouldUseVirtualKeyboard()) {
+      return;
+    }
+
+    answerField.classList.add("answer-field-focused");
+    if (!answerField.hasFocus || !answerField.hasFocus()) {
+      answerField.focus({ preventScroll: true });
+    }
+    window.mathVirtualKeyboard.show();
+  };
+
+  answerField.addEventListener("pointerdown", forceKeyboardOnTouchLikeInteraction, true);
+  answerField.addEventListener("touchstart", forceKeyboardOnTouchLikeInteraction, true);
+
   // In some touch/PWA contexts, taps edit content but host focus visuals lag.
   // For reliability, force host focus when user taps the field.
   answerField.addEventListener("click", () => {
@@ -584,8 +606,17 @@ function detectTouchDevice() {
     return true;
   }
 
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-    return window.matchMedia("(pointer: coarse)").matches;
+  if (typeof window !== "undefined") {
+    if ("ontouchstart" in window) {
+      return true;
+    }
+
+    if (typeof window.matchMedia === "function") {
+      return window.matchMedia("(pointer: coarse)").matches
+        || window.matchMedia("(any-pointer: coarse)").matches
+        || window.matchMedia("(hover: none)").matches
+        || window.matchMedia("(any-hover: none)").matches;
+    }
   }
 
   return false;
@@ -602,7 +633,7 @@ function configureAnswerVirtualKeyboard() {
     createBooleanVirtualKeyboardLayout(state.notationId),
   ];
 
-  if (isTouchDevice) {
+  if (shouldUseVirtualKeyboard()) {
     window.mathVirtualKeyboard.container = document.body;
   }
 
