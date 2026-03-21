@@ -481,6 +481,7 @@ body[data-theme="light"] #hintField::part(content) {
   padding: 8px;
   font-size: 1.2rem;
   --keyboard-zindex: 9999;
+  --contains-highlight-background-color: transparent;
   --answer-border-unfocused: color-mix(in srgb, var(--panel-border) 82%, #ffffff 18%);
   --answer-border-focused: color-mix(in srgb, var(--brand) 68%, #ffffff 32%);
   --answer-glow-unfocused: color-mix(in srgb, var(--panel-border) 34%, transparent);
