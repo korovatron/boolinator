@@ -444,8 +444,9 @@ function bindEvents() {
     closeMathKeyboardAndClearFocus();
   };
 
-  document.addEventListener("pointerdown", blurOnOutsideInteraction, true);
-  document.addEventListener("touchstart", blurOnOutsideInteraction, true);
+  document.addEventListener("mouseup", blurOnOutsideInteraction, true);
+  document.addEventListener("touchend", blurOnOutsideInteraction, true);
+  document.addEventListener("click", blurOnOutsideInteraction, true);
 }
 
 function shouldUseVirtualKeyboard() {
@@ -468,6 +469,13 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
     return true;
   }
 
+  if (target instanceof Element) {
+    const targetClassName = typeof target.className === "string" ? target.className : "";
+    if (targetClassName.includes("MLK__") || targetClassName.includes("ML__")) {
+      return true;
+    }
+  }
+
   const path = typeof event.composedPath === "function" ? event.composedPath() : [];
   if (path.includes(answerField)) {
     return true;
@@ -480,6 +488,11 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
 
     const root = node.getRootNode?.();
     if (root && root.host === answerField) {
+      return true;
+    }
+
+    const className = typeof node.className === "string" ? node.className : "";
+    if (className.includes("MLK__") || className.includes("ML__")) {
       return true;
     }
 
