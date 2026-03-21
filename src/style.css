@@ -17,6 +17,12 @@
   --surface-soft: #1d3553;
   --radius: 18px;
   --shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+  
+  /* Safe area support for iOS notch/dynamic island */
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+  --safe-area-left: env(safe-area-inset-left);
+  --safe-area-right: env(safe-area-inset-right);
 }
 
 * {
@@ -773,6 +779,39 @@ body[data-theme="light"] .hint-expression {
     linear-gradient(132deg, rgba(0, 216, 255, 0.24), rgba(22, 39, 65, 0.42), rgba(77, 255, 184, 0.14)),
     color-mix(in srgb, var(--brand) 18%, var(--surface) 82%);
   border: 1px solid color-mix(in srgb, var(--accent) 58%, rgba(220, 252, 255, 0.24));
+}
+
+/* Fullscreen PWA support - respects notch/safe areas */
+@media (display-mode: fullscreen) {
+  html {
+    width: 100vw;
+    height: 100vh;
+  }
+  
+  body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  .shell {
+    height: 100vh;
+    overflow-y: auto;
+    padding-left: max(8px, var(--safe-area-left, 0px));
+    padding-right: max(8px, var(--safe-area-right, 0px));
+    padding-top: max(8px, var(--safe-area-top, 0px));
+    padding-bottom: max(8px, var(--safe-area-bottom, 0px));
+  }
+  
+  /* Virtual keyboard in fullscreen extends to edge, respecting safe areas */
+  .ML__keyboard,
+  .ML__keyboard-container,
+  .ML__virtual-keyboard,
+  math-field::part(keyboard) {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    margin-bottom: 0 !important;
+  }
+}
 }
 
 body:not([data-theme="light"]) .tone-info {
