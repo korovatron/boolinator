@@ -155,13 +155,7 @@ function closeMathKeyboardAndClearFocus(duration = 500) {
 
   answerField.classList.remove("answer-field-focused");
 
-  if (window.mathVirtualKeyboard) {
-    try {
-      window.mathVirtualKeyboard.hide({ animate: true });
-    } catch {
-      window.mathVirtualKeyboard.hide();
-    }
-  }
+  hideAnswerVirtualKeyboard();
 
   setTimeout(() => {
     mathFields.forEach((field) => {
@@ -217,12 +211,8 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
 
     restoreAnswerFieldCaretToEnd();
 
-    if (reopenKeyboard && window.mathVirtualKeyboard) {
-      try {
-        window.mathVirtualKeyboard.show({ animate: true });
-      } catch {
-        window.mathVirtualKeyboard.show();
-      }
+    if (reopenKeyboard) {
+      showAnswerVirtualKeyboard();
     }
   };
 
@@ -230,6 +220,59 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
     reconnect();
     setTimeout(reconnect, 40);
   });
+}
+
+function showAnswerVirtualKeyboard() {
+  if (!answerField || !shouldUseVirtualKeyboard() || !window.mathVirtualKeyboard) {
+    return;
+  }
+
+  try {
+    window.mathVirtualKeyboard.update(answerField);
+  } catch {
+    // Some MathLive builds may not expose update().
+  }
+
+  try {
+    window.mathVirtualKeyboard.connect();
+  } catch {
+    // The shared keyboard may already be connected.
+  }
+
+  if (typeof answerField.executeCommand === "function") {
+    const shown = answerField.executeCommand("showVirtualKeyboard");
+    if (shown) {
+      return;
+    }
+  }
+
+  try {
+    window.mathVirtualKeyboard.show({ animate: true });
+  } catch {
+    window.mathVirtualKeyboard.show();
+  }
+}
+
+function hideAnswerVirtualKeyboard() {
+  if (!window.mathVirtualKeyboard) {
+    return;
+  }
+
+  if (typeof answerField?.executeCommand === "function") {
+    answerField.executeCommand("hideVirtualKeyboard");
+  }
+
+  try {
+    window.mathVirtualKeyboard.hide({ animate: true });
+  } catch {
+    window.mathVirtualKeyboard.hide();
+  }
+
+  try {
+    window.mathVirtualKeyboard.disconnect();
+  } catch {
+    // The shared keyboard may already be disconnected.
+  }
 }
 
 initializeTheme();
@@ -264,10 +307,10 @@ function setupMathFields() {
   hintField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
-  answerField.mathVirtualKeyboardPolicy = useVirtualKeyboard ? "auto" : "manual";
+  answerField.mathVirtualKeyboardPolicy = "manual";
   answerField.setAttribute(
     "math-virtual-keyboard-policy",
-    useVirtualKeyboard ? "auto" : "manual",
+    "manual",
   );
   answerField.setAttribute(
     "virtual-keyboard-mode",
@@ -465,15 +508,8 @@ function bindEvents() {
     answerField.classList.add("answer-field-focused");
     restoreAnswerFieldCaretToEnd();
 
-    // Always show MathLive keyboard on focus for touch devices.
-    // This is more reliable than auto policy in iOS Safari + PWA modes.
-    if (shouldUseVirtualKeyboard() && window.mathVirtualKeyboard) {
-      try {
-        window.mathVirtualKeyboard.show({ animate: true });
-      } catch {
-        window.mathVirtualKeyboard.show();
-      }
-    }
+    // Use explicit field-driven keyboard control to keep MathLive's target in sync.
+    showAnswerVirtualKeyboard();
   });
 
   // If the field is still focused but keyboard was dismissed, a tap should reopen it.
@@ -827,8 +863,8 @@ function configureAnswerVirtualKeyboard() {
   }
 
   if (wasVisible) {
-    window.mathVirtualKeyboard.hide();
-    window.mathVirtualKeyboard.show();
+    hideAnswerVirtualKeyboard();
+    showAnswerVirtualKeyboard();
   }
 }
 
