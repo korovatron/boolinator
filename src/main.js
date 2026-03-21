@@ -118,7 +118,6 @@ const state = {
 };
 
 let _originalKeybindings = null;
-let _lastAnswerFocusAt = 0;
 
 /**
  * Protects math-field elements from auto-focus on iOS PWA
@@ -341,31 +340,6 @@ function bindEvents() {
     }
   });
 
-  // iOS fix: Close keyboard when tapping outside both field and keyboard.
-  // Use click (not capture-phase touch/pointer start) to avoid immediate blur
-  // during the same gesture that focuses the field.
-  const closeKeyboardOnOutsideTap = (event) => {
-    if (!answerField.hasFocus || !answerField.hasFocus()) {
-      return;
-    }
-
-    // Guard against the same tap sequence that just focused the field.
-    if (Date.now() - _lastAnswerFocusAt < 150) {
-      return;
-    }
-
-    if (isEventInsideAnswerFieldOrKeyboard(event)) {
-      return;
-    }
-
-    answerField.blur();
-    if (window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.hide();
-    }
-  };
-
-  document.addEventListener("click", closeKeyboardOnOutsideTap, true);
-
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
   // This happens when the app is installed as PWA on iOS Safari
   answerField.addEventListener("focusin", (e) => {
@@ -376,82 +350,12 @@ function bindEvents() {
       return;
     }
 
-    _lastAnswerFocusAt = Date.now();
-
-    // In installed iOS PWA mode, MathLive can miss auto-show on focus.
-    // Force-show the keyboard when a touch device focuses the answer field.
-    if (isTouchDevice && isPwaDisplayMode() && window.mathVirtualKeyboard) {
+    // Always show MathLive keyboard on focus for touch devices.
+    // This is more reliable than auto policy in iOS Safari + PWA modes.
+    if (isTouchDevice && window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.show();
     }
   });
-}
-
-function isPwaDisplayMode() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.matchMedia?.("(display-mode: standalone)")?.matches
-    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
-    || window.navigator.standalone === true;
-}
-
-function isEventInsideAnswerFieldOrKeyboard(event) {
-  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-  const target = event.target;
-
-  if (target === answerField) {
-    return true;
-  }
-
-  if (target instanceof Element) {
-    if (target.closest?.("#answerField")) {
-      return true;
-    }
-
-    const targetRoot = target.getRootNode?.();
-    if (targetRoot && targetRoot.host === answerField) {
-      return true;
-    }
-
-    if (target.closest?.(".ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
-      return true;
-    }
-  }
-
-  if (path.includes(answerField)) {
-    return true;
-  }
-
-  for (const node of path) {
-    if (!(node instanceof Element)) {
-      continue;
-    }
-
-    // Elements inside answerField's shadow root are "inside".
-    const root = node.getRootNode?.();
-    if (root && root.host === answerField) {
-      return true;
-    }
-
-    if (node.closest?.("#answerField")) {
-      return true;
-    }
-
-    // MathLive internal toggle parts/classes inside shadow DOM.
-    if (node.getAttribute?.("part") === "virtual-keyboard-toggle"
-      || node.getAttribute?.("part") === "keyboard-toggle"
-      || node.classList?.contains("ML__virtual-keyboard-toggle")) {
-      return true;
-    }
-
-    // MathLive keyboard containers and parts
-    if (node.closest?.(".ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function handleClipboardEvent(event) {
