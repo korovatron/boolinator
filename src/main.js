@@ -382,30 +382,35 @@ function bindEvents() {
     // Always show MathLive keyboard on focus for touch devices.
     // This is more reliable than auto policy in iOS Safari + PWA modes.
     if (shouldUseVirtualKeyboard() && window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.show({ animate: true });
+      try {
+        window.mathVirtualKeyboard.show({ animate: true });
+      } catch {
+        window.mathVirtualKeyboard.show();
+      }
     }
   });
 
   // If the field is still focused but keyboard was dismissed, a tap should reopen it.
-  answerField.addEventListener("pointerdown", (event) => {
+  const reopenKeyboardIfFocused = () => {
     if (!window.mathVirtualKeyboard || !shouldUseVirtualKeyboard()) {
       return;
     }
 
-    const pointerType = event?.pointerType;
-    const touchLikePointer = pointerType === "touch" || pointerType === "pen";
-    if (!touchLikePointer && detectTouchDevice()) {
-      return;
-    }
-
     if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
-      window.mathVirtualKeyboard.show({ animate: true });
+      try {
+        window.mathVirtualKeyboard.show({ animate: true });
+      } catch {
+        window.mathVirtualKeyboard.show();
+      }
     }
-  }, true);
+  };
+
+  answerField.addEventListener("pointerdown", reopenKeyboardIfFocused, true);
+  answerField.addEventListener("touchstart", reopenKeyboardIfFocused, true);
 
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
-  document.addEventListener("pointerdown", (event) => {
+  const blurOnOutsideInteraction = (event) => {
     if (!answerField.hasFocus || !answerField.hasFocus()) {
       return;
     }
@@ -426,7 +431,10 @@ function bindEvents() {
         answerField.blur();
       }
     }, 0);
-  }, true);
+  };
+
+  document.addEventListener("pointerdown", blurOnOutsideInteraction, true);
+  document.addEventListener("touchstart", blurOnOutsideInteraction, true);
 }
 
 function shouldUseVirtualKeyboard() {
