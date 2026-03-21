@@ -340,7 +340,8 @@ function bindEvents() {
   });
 
   // iOS fix: Close keyboard when tapping outside both field and keyboard.
-  // Use pointer/touch start to reliably catch outside taps in iOS PWA mode.
+  // Use click (not capture-phase touch/pointer start) to avoid immediate blur
+  // during the same gesture that focuses the field.
   const closeKeyboardOnOutsideTap = (event) => {
     if (!answerField.hasFocus || !answerField.hasFocus()) {
       return;
@@ -356,8 +357,7 @@ function bindEvents() {
     }
   };
 
-  document.addEventListener("pointerdown", closeKeyboardOnOutsideTap, true);
-  document.addEventListener("touchstart", closeKeyboardOnOutsideTap, true);
+  document.addEventListener("click", closeKeyboardOnOutsideTap, true);
 
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
   // This happens when the app is installed as PWA on iOS Safari
