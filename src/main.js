@@ -333,10 +333,6 @@ function bindEvents() {
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
-    // Explicitly hide virtual keyboard on blur for iOS
-    if (window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.hide();
-    }
   });
 
   // iOS fix: Close keyboard when tapping outside both field and keyboard.
@@ -399,7 +395,20 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
       continue;
     }
 
+    // Elements inside answerField's shadow root are "inside".
+    const root = node.getRootNode?.();
+    if (root && root.host === answerField) {
+      return true;
+    }
+
     if (node.closest?.("#answerField")) {
+      return true;
+    }
+
+    // MathLive internal toggle parts/classes inside shadow DOM.
+    if (node.getAttribute?.("part") === "virtual-keyboard-toggle"
+      || node.getAttribute?.("part") === "keyboard-toggle"
+      || node.classList?.contains("ML__virtual-keyboard-toggle")) {
       return true;
     }
 
