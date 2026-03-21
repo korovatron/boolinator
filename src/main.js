@@ -119,6 +119,29 @@ const state = {
 
 let _originalKeybindings = null;
 
+/**
+ * Protects math-field elements from auto-focus on iOS PWA
+ * Prevents virtual keyboard from looping when dismissed
+ * @param {number} duration - How long to maintain protection (ms)
+ */
+function protectFieldsFromAutoFocus(duration = 500) {
+  const field = answerField;
+  if (field) {
+    // Set protection flag
+    field.setAttribute("data-blur-protected", "true");
+    
+    // If field has focus, blur it first
+    if (field.hasFocus && field.hasFocus()) {
+      field.blur();
+    }
+    
+    // Remove protection after specified duration
+    setTimeout(() => {
+      field.removeAttribute("data-blur-protected");
+    }, duration);
+  }
+}
+
 initializeTheme();
 setupMathFields();
 renderThemeToggle();
@@ -269,10 +292,14 @@ function bindEvents() {
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
+    // Protect against iOS PWA keyboard loop during major state change
+    protectFieldsFromAutoFocus(300);
     startNewChallenge();
   });
 
   document.querySelector("#clearBtn").addEventListener("click", () => {
+    // Protect against iOS PWA keyboard loop during field clear/refocus
+    protectFieldsFromAutoFocus(300);
     setFieldValue(answerField, "");
     answerField.focus();
   });
@@ -282,6 +309,8 @@ function bindEvents() {
   });
 
   document.querySelector("#hintBtn").addEventListener("click", () => {
+    // Protect against iOS PWA keyboard loop when panel state changes
+    protectFieldsFromAutoFocus(300);
     hintArea.classList.remove("hidden");
     renderHint();
   });
@@ -292,6 +321,17 @@ function bindEvents() {
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
+  });
+
+  // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
+  // This happens when the app is installed as PWA on iOS Safari
+  answerField.addEventListener("focusin", (e) => {
+    // If blur protection is active, immediately blur to prevent keyboard auto-open
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      e.preventDefault();
+      answerField.blur();
+      return;
+    }
   });
 }
 
