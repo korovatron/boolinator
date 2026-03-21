@@ -966,7 +966,7 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
       return true;
     }
 
-    if (node.closest?.("#answerField, .ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
+    if (node.closest?.("#answerField, #touchKeypad, .ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
       return true;
     }
   }
