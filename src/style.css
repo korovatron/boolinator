@@ -60,11 +60,10 @@ body {
 }
 
 #app {
-  height: 100svh;
-  min-height: 100svh;
-  overflow-y: scroll;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
 }
 
 #challengeField,
