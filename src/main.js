@@ -118,6 +118,7 @@ const state = {
 };
 
 let _originalKeybindings = null;
+let answerFieldReconnectToken = 0;
 
 /**
  * Protects math-field elements from auto-focus on iOS PWA
@@ -184,6 +185,51 @@ function restoreAnswerFieldCaretToEnd() {
 
   queueMicrotask(applySelection);
   setTimeout(applySelection, 10);
+}
+
+function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
+  if (!answerField || !shouldUseVirtualKeyboard()) {
+    return;
+  }
+
+  if (answerField.getAttribute("data-blur-protected") === "true") {
+    return;
+  }
+
+  const reconnectToken = ++answerFieldReconnectToken;
+
+  const reconnect = () => {
+    if (reconnectToken !== answerFieldReconnectToken) {
+      return;
+    }
+
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      return;
+    }
+
+    answerField.classList.add("answer-field-focused");
+
+    try {
+      answerField.focus({ preventScroll: true });
+    } catch {
+      answerField.focus();
+    }
+
+    restoreAnswerFieldCaretToEnd();
+
+    if (reopenKeyboard && window.mathVirtualKeyboard) {
+      try {
+        window.mathVirtualKeyboard.show({ animate: true });
+      } catch {
+        window.mathVirtualKeyboard.show();
+      }
+    }
+  };
+
+  requestAnimationFrame(() => {
+    reconnect();
+    setTimeout(reconnect, 40);
+  });
 }
 
 initializeTheme();
@@ -438,24 +484,44 @@ function bindEvents() {
 
     if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
       // iOS can leave MathLive visually focused but with a stale input target.
-      // Force a real blur/refocus cycle before reopening the keyboard.
+      // Force a real blur, then run the same reconnect path that resume uses.
       answerField.blur();
-
-      requestAnimationFrame(() => {
-        answerField.focus({ preventScroll: true });
-        restoreAnswerFieldCaretToEnd();
-
-        try {
-          window.mathVirtualKeyboard.show({ animate: true });
-        } catch {
-          window.mathVirtualKeyboard.show();
-        }
-      });
+      reconnectAnswerFieldInputTarget();
     }
   };
 
   answerField.addEventListener("pointerdown", reopenKeyboardIfFocused, true);
   answerField.addEventListener("touchstart", reopenKeyboardIfFocused, true);
+
+  const recoverAnswerFieldAfterResume = () => {
+    if (!shouldUseVirtualKeyboard()) {
+      return;
+    }
+
+    if (!answerField.hasFocus || !answerField.hasFocus()) {
+      return;
+    }
+
+    reconnectAnswerFieldInputTarget();
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      setTimeout(recoverAnswerFieldAfterResume, 0);
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    if (document.visibilityState === "visible") {
+      setTimeout(recoverAnswerFieldAfterResume, 0);
+    }
+  });
+
+  window.addEventListener("pageshow", () => {
+    if (document.visibilityState === "visible") {
+      setTimeout(recoverAnswerFieldAfterResume, 0);
+    }
+  });
 
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
