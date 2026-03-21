@@ -36,6 +36,8 @@ body {
   font-family: "Chivo", "Segoe UI", sans-serif;
   color: var(--ink);
   background-color: #0a0f14;
+  /* Prevent iOS rubber banding scrolling */
+  overflow: hidden;
 }
 
 body {
@@ -46,6 +48,12 @@ body {
     radial-gradient(circle at 88% 90%, rgba(77, 255, 184, 0.12), transparent 42%);
   user-select: none;
   -webkit-user-select: none;
+}
+
+#app {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #challengeField,
@@ -109,6 +117,10 @@ body[data-theme="light"] .panel {
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: -6px;
+  /* Respect safe areas on notched devices */
+  padding-top: max(8px, var(--safe-area-top, 0px));
+  padding-right: max(8px, var(--safe-area-right, 0px));
+  padding-left: max(8px, var(--safe-area-left, 0px));
 }
 
 .hero {
@@ -804,15 +816,61 @@ body[data-theme="light"] .hint-expression {
   }
   
   /* Virtual keyboard in fullscreen extends to edge, respecting safe areas */
+    .ML__keyboard,
+    .ML__keyboard-container,
+    .ML__virtual-keyboard,
+    math-field::part(keyboard) {
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
+    }
+    
+    /* MathLive CSS variables for proper keyboard positioning */
+    .ML__keyboard {
+      --keyboard-padding-bottom: 0px !important;
+      --_padding-bottom: 0px !important;
+      --keyboard-padding-top: 5px !important;
+      --_padding-top: 5px !important;
+    }
+    
+    /* Target keyboard backdrop and plate specifically */
+    .MLK__backdrop {
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
+    }
+    
+    .MLK__plate {
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
+  }
+}
+
+/* Handle standalone PWA mode (alternative mode on iOS) */
+@media (display-mode: standalone) {
   .ML__keyboard,
   .ML__keyboard-container,
   .ML__virtual-keyboard,
   math-field::part(keyboard) {
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    margin-bottom: 0 !important;
+    padding-bottom: 0px !important;
+    margin-bottom: 0px !important;
+  }
+  
+  .ML__keyboard {
+    --keyboard-padding-bottom: 0px !important;
+    --_padding-bottom: 0px !important;
+    --keyboard-padding-top: 5px !important;
+    --_padding-top: 5px !important;
+  }
+  
+  .MLK__backdrop {
+    padding-bottom: 0px !important;
+    margin-bottom: 0px !important;
+  }
+  
+  .MLK__plate {
+    padding-bottom: 0px !important;
+    margin-bottom: 0px !important;
   }
 }
-
 body:not([data-theme="light"]) .tone-info {
   background: color-mix(in srgb, var(--brand) 18%, var(--surface) 82%);
 }
