@@ -169,6 +169,23 @@ function closeMathKeyboardAndClearFocus(duration = 500) {
   }, duration);
 }
 
+function restoreAnswerFieldCaretToEnd() {
+  if (!answerField) {
+    return;
+  }
+
+  const applySelection = () => {
+    try {
+      answerField.selection = { ranges: [[Infinity, Infinity]] };
+    } catch {
+      // MathLive can reject selection updates during some transitions.
+    }
+  };
+
+  queueMicrotask(applySelection);
+  setTimeout(applySelection, 10);
+}
+
 initializeTheme();
 setupMathFields();
 renderThemeToggle();
@@ -400,6 +417,7 @@ function bindEvents() {
     }
 
     answerField.classList.add("answer-field-focused");
+    restoreAnswerFieldCaretToEnd();
 
     // Always show MathLive keyboard on focus for touch devices.
     // This is more reliable than auto policy in iOS Safari + PWA modes.
@@ -422,6 +440,7 @@ function bindEvents() {
       // Reassert a real editable focus/caret before reopening the keyboard.
       // Without this, iOS can leave the field visually focused but not writable.
       answerField.focus({ preventScroll: true });
+      restoreAnswerFieldCaretToEnd();
 
       try {
         window.mathVirtualKeyboard.show({ animate: true });
