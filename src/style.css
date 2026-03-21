@@ -92,7 +92,7 @@ body[data-theme="light"] .panel {
 #app {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 30px 18px 36px;
+  padding: max(30px, env(safe-area-inset-top)) 18px 36px;
 }
 
 .shell {
@@ -111,16 +111,38 @@ body[data-theme="light"] .panel {
   padding: 18px;
 }
 
-.top-controls {
-  grid-column: span 12;
+.hero-controls {
+  flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 8px;
-  margin-bottom: -6px;
-  /* Respect safe areas on notched devices */
-  padding-top: max(8px, var(--safe-area-top, 0px));
-  padding-right: max(8px, var(--safe-area-right, 0px));
-  padding-left: max(8px, var(--safe-area-left, 0px));
+  align-items: stretch;
+}
+
+.hero-controls .mode-toggle {
+  min-width: 124px;
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--panel-border) 54%);
+  border-width: 1px;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.hero-controls .mode-toggle .mode-divider {
+  color: color-mix(in srgb, var(--ink) 48%, transparent);
+}
+
+body[data-theme="light"] .hero-controls .mode-toggle {
+  background: var(--surface);
+  border-color: rgba(12, 130, 180, 0.52);
+  border-width: 2px;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(12, 130, 180, 0.2);
+}
+
+body[data-theme="light"] .hero-controls .mode-toggle .mode-divider {
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
 }
 
 .hero {
@@ -1097,10 +1119,6 @@ body[data-theme="light"] .tone-error {
   .answer,
   .feedback {
     grid-column: span 12;
-  }
-
-  .top-controls {
-    margin-bottom: 0;
   }
 
   .tile-head {

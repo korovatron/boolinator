@@ -22,23 +22,7 @@ const root = document.querySelector("#app");
 
 root.innerHTML = `
   <main class="shell">
-    <div class="top-controls">
-      <button id="themeToggle" class="mode-toggle" type="button" aria-label="Toggle theme mode">
-        <span class="theme-dark">Dark</span>
-        <span class="mode-divider">|</span>
-        <span class="theme-light">Light</span>
-      </button>
-      <button id="notationToggle" class="mode-toggle" type="button" aria-label="Toggle notation mode" title="Switch notation to match exam board style (AQA or OCR)">
-        <span class="mode-aqa">AQA</span>
-        <span class="mode-divider">|</span>
-        <span class="mode-ocr">OCR</span>
-      </button>
-    </div>
-
     <header class="hero panel">
-      <div class="hero-copy">
-        <h1>Boolinator</h1>
-      </div>
       <img
         class="hero-logo hero-logo-dark"
         src="./images/theBoolinator.png"
@@ -51,6 +35,21 @@ root.innerHTML = `
         alt="Boolinator"
         decoding="async"
       />
+      <div class="hero-copy">
+        <h1>Boolinator</h1>
+      </div>
+      <div class="hero-controls">
+        <button id="themeToggle" class="mode-toggle" type="button" aria-label="Toggle theme mode">
+          <span class="theme-dark">Dark</span>
+          <span class="mode-divider">|</span>
+          <span class="theme-light">Light</span>
+        </button>
+        <button id="notationToggle" class="mode-toggle" type="button" aria-label="Toggle notation mode" title="Switch notation to match exam board style (AQA or OCR)">
+          <span class="mode-ocr">OCR</span>
+          <span class="mode-divider">|</span>
+          <span class="mode-aqa">AQA</span>
+        </button>
+      </div>
     </header>
 
     <section class="panel challenge">
@@ -121,168 +120,7 @@ const state = {
 
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
-let answerOpenRequestToken = 0;
-let lastKeyboardShowRequestAt = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v59";
-const keyboardDebug = createKeyboardDebugOverlay();
 
-function createKeyboardDebugOverlay() {
-  if (typeof document === "undefined") {
-    return {
-      isEnabled: () => false,
-      log: () => {},
-    };
-  }
-
-  const maxLines = 200;
-  const lines = [];
-  let enabled = false;
-
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "vk-debug-toggle";
-  toggle.textContent = "VK Debug";
-  toggle.setAttribute("aria-label", "Toggle keyboard debug panel");
-
-  const panel = document.createElement("section");
-  panel.className = "vk-debug-panel hidden";
-  panel.innerHTML = `
-    <header class="vk-debug-header">
-      <strong>Keyboard Debug <span class="vk-debug-version">${VK_DEBUG_OVERLAY_VERSION}</span></strong>
-      <div class="vk-debug-actions">
-        <button type="button" data-vkdebug="copy">Copy</button>
-        <button type="button" data-vkdebug="clear">Clear</button>
-        <button type="button" data-vkdebug="close">Close</button>
-      </div>
-    </header>
-    <pre class="vk-debug-log" aria-live="polite"></pre>
-  `;
-
-  const logEl = panel.querySelector(".vk-debug-log");
-
-  const render = () => {
-    logEl.textContent = lines.join("\n");
-    logEl.scrollTop = logEl.scrollHeight;
-  };
-
-  const setEnabled = (next) => {
-    enabled = Boolean(next);
-    panel.classList.toggle("hidden", !enabled);
-    toggle.classList.toggle("is-active", enabled);
-    toggle.textContent = enabled ? "VK Debug ON" : "VK Debug";
-  };
-
-  const appendLine = (line) => {
-    lines.push(line);
-    if (lines.length > maxLines) {
-      lines.splice(0, lines.length - maxLines);
-    }
-    render();
-  };
-
-  toggle.addEventListener("click", () => {
-    setEnabled(!enabled);
-    if (enabled) {
-      appendLine("--- debug panel opened ---");
-    }
-  });
-
-  panel.addEventListener("click", async (event) => {
-    const action = event.target?.getAttribute?.("data-vkdebug");
-    if (!action) {
-      return;
-    }
-
-    if (action === "clear") {
-      lines.length = 0;
-      render();
-      appendLine("--- log cleared ---");
-      return;
-    }
-
-    if (action === "close") {
-      setEnabled(false);
-      return;
-    }
-
-    if (action === "copy") {
-      const payload = lines.join("\n");
-      try {
-        await navigator.clipboard.writeText(payload);
-        appendLine("[info] copied log to clipboard");
-      } catch {
-        appendLine("[warn] clipboard copy failed");
-      }
-    }
-  });
-
-  try {
-    const forced = new URLSearchParams(window.location.search).get("vkdebug") === "1";
-    if (forced) {
-      document.body.append(toggle, panel);
-      setEnabled(true);
-      appendLine("--- debug panel auto-enabled ---");
-    }
-  } catch {
-    // Ignore query/storage errors.
-  }
-
-  return {
-    isEnabled: () => enabled,
-    log: (eventName, details = null) => {
-      if (!enabled) {
-        return;
-      }
-
-      const stamp = new Date().toISOString().slice(11, 23);
-      if (details && Object.keys(details).length > 0) {
-        appendLine(`[${stamp}] ${eventName} ${JSON.stringify(details)}`);
-        return;
-      }
-      appendLine(`[${stamp}] ${eventName}`);
-    },
-  };
-}
-
-function describeElement(element) {
-  if (!element || !(element instanceof Element)) {
-    return "none";
-  }
-
-  const tag = element.tagName?.toLowerCase?.() ?? "unknown";
-  const id = element.id ? `#${element.id}` : "";
-  const cls = typeof element.className === "string" && element.className
-    ? `.${element.className.trim().split(/\s+/).slice(0, 2).join(".")}`
-    : "";
-  return `${tag}${id}${cls}`;
-}
-
-function getAnswerFieldDebugSnapshot() {
-  const ranges = answerField?.selection?.ranges;
-  return {
-    hasFocus: Boolean(answerField?.hasFocus?.()),
-    activeElement: describeElement(document.activeElement),
-    vkVisible: Boolean(window.mathVirtualKeyboard?.visible),
-    blurProtected: answerField?.getAttribute?.("data-blur-protected") === "true",
-    valueLength: getFieldValue(answerField).length,
-    selection: Array.isArray(ranges) ? ranges.slice(0, 2) : null,
-  };
-}
-
-function logKeyboardDebug(eventName, details = null) {
-  if (!keyboardDebug.isEnabled()) {
-    return;
-  }
-
-  keyboardDebug.log(eventName, {
-    ...getAnswerFieldDebugSnapshot(),
-    ...(details ?? {}),
-  });
-}
-
-function hasRealAnswerFieldFocus() {
-  return document.activeElement === answerField;
-}
 
 function hasMathLiveAnswerFocus() {
   return Boolean(answerField?.hasFocus && answerField.hasFocus());
@@ -290,25 +128,6 @@ function hasMathLiveAnswerFocus() {
 
 function shouldUseCustomTouchKeypad() {
   return detectTouchDevice();
-}
-
-function closeMathKeyboardAndClearFocus(duration = 140) {
-  answerOpenRequestToken += 1;
-  answerField.setAttribute("data-blur-protected", "true");
-
-  if (answerField.hasFocus && answerField.hasFocus()) {
-    answerField.blur();
-  }
-
-  answerField.classList.remove("answer-field-focused");
-
-  hideAnswerVirtualKeyboard();
-  forceAnswerFieldBlurReset();
-
-  setTimeout(() => {
-    answerField.removeAttribute("data-blur-protected");
-    answerField.classList.remove("answer-field-focused");
-  }, Math.max(500, duration));
 }
 
 function forceAnswerFieldBlurReset() {
@@ -323,86 +142,6 @@ function forceAnswerFieldBlurReset() {
   blurOnce();
   requestAnimationFrame(blurOnce);
   setTimeout(blurOnce, 40);
-}
-
-function restoreAnswerFieldCaretToEnd() {
-  if (!answerField) {
-    return;
-  }
-
-  const applySelection = () => {
-    if (!hasRealAnswerFieldFocus()) {
-      return;
-    }
-
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      return;
-    }
-
-    try {
-      answerField.selection = { ranges: [[Infinity, Infinity]] };
-    } catch {
-      // MathLive can reject selection updates during some transitions.
-    }
-  };
-
-  queueMicrotask(applySelection);
-  setTimeout(applySelection, 10);
-}
-
-function showAnswerVirtualKeyboard(options = {}) {
-  const { requireRealFocus = false, force = false } = options;
-
-  if (!answerField || (!shouldUseVirtualKeyboard() && !force) || !window.mathVirtualKeyboard) {
-    logKeyboardDebug("keyboard:show:skip", { reason: "keyboard unavailable" });
-    return;
-  }
-
-  if (!hasRealAnswerFieldFocus()) {
-    try {
-      answerField.focus({ preventScroll: true });
-    } catch {
-      answerField.focus();
-    }
-
-    restoreAnswerFieldCaretToEnd();
-
-    if (requireRealFocus && !hasRealAnswerFieldFocus()) {
-      logKeyboardDebug("keyboard:show:skip", { reason: "real focus missing" });
-      return;
-    }
-  }
-
-  try {
-    window.mathVirtualKeyboard.update(answerField);
-    logKeyboardDebug("keyboard:update", { ok: true });
-  } catch {
-    // Some MathLive builds may not expose update().
-    logKeyboardDebug("keyboard:update", { ok: false });
-  }
-
-  try {
-    window.mathVirtualKeyboard.show({ animate: true });
-    logKeyboardDebug("keyboard:show", { mode: "global-animate" });
-  } catch {
-    window.mathVirtualKeyboard.show();
-    logKeyboardDebug("keyboard:show", { mode: "global" });
-  }
-}
-
-function hideAnswerVirtualKeyboard() {
-  if (!window.mathVirtualKeyboard) {
-    logKeyboardDebug("keyboard:hide:skip", { reason: "keyboard unavailable" });
-    return;
-  }
-
-  try {
-    window.mathVirtualKeyboard.hide({ animate: true });
-    logKeyboardDebug("keyboard:hide", { mode: "global-animate" });
-  } catch {
-    window.mathVirtualKeyboard.hide();
-    logKeyboardDebug("keyboard:hide", { mode: "global" });
-  }
 }
 
 initializeTheme();
@@ -431,22 +170,14 @@ function applyTheme() {
 
 function setupMathFields() {
   isTouchDevice = detectTouchDevice();
-  const useVirtualKeyboard = shouldUseVirtualKeyboard();
-  const useCustomTouchKeypad = shouldUseCustomTouchKeypad();
 
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
-  answerField.mathVirtualKeyboardPolicy = useCustomTouchKeypad ? "manual" : "auto";
-  answerField.setAttribute(
-    "math-virtual-keyboard-policy",
-    useCustomTouchKeypad ? "manual" : "auto",
-  );
-  answerField.setAttribute(
-    "virtual-keyboard-mode",
-    useCustomTouchKeypad ? "manual" : (useVirtualKeyboard ? "onfocus" : "manual"),
-  );
+  answerField.mathVirtualKeyboardPolicy = "manual";
+  answerField.setAttribute("math-virtual-keyboard-policy", "manual");
+  answerField.setAttribute("virtual-keyboard-mode", "manual");
 
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
@@ -458,7 +189,6 @@ function setupMathFields() {
   inputTip.classList.add("hidden");
 
   applyAnswerKeybindings();
-  configureAnswerVirtualKeyboard();
   renderTouchKeypad();
   bindTouchKeypadEvents();
 }
@@ -703,7 +433,6 @@ function bindEvents() {
     renderTip();
     retranslateAnswerField();
     applyAnswerKeybindings();
-    configureAnswerVirtualKeyboard();
     renderTouchKeypad();
   };
 
@@ -722,13 +451,8 @@ function bindEvents() {
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
     checkAnswer();
-    if (shouldUseCustomTouchKeypad()) {
-      forceAnswerFieldBlurReset();
-      answerField.classList.remove("answer-field-focused");
-      return;
-    }
-
-    closeMathKeyboardAndClearFocus(500);
+    forceAnswerFieldBlurReset();
+    answerField.classList.remove("answer-field-focused");
   });
 
   document.querySelector("#hintBtn").addEventListener("click", () => {
@@ -739,136 +463,21 @@ function bindEvents() {
   document.addEventListener("copy", handleClipboardEvent, true);
   document.addEventListener("cut", handleClipboardEvent, true);
 
-  answerField.addEventListener("beforeinput", (event) => {
-    logKeyboardDebug("answer:beforeinput", { inputType: event.inputType, data: event.data ?? null });
-  });
-
-  answerField.addEventListener("input", (event) => {
-    logKeyboardDebug("answer:input", { inputType: event.inputType, data: event.data ?? null });
-  });
-
-  answerField.addEventListener("selection-change", () => {
-    logKeyboardDebug("answer:selection-change");
-  });
-
-  answerField.addEventListener("keydown", (event) => {
-    logKeyboardDebug("answer:keydown", { key: event.key, code: event.code });
-  }, true);
-
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
-    logKeyboardDebug("answer:blur");
     answerField.classList.remove("answer-field-focused");
   });
 
-  // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
-  // This happens when the app is installed as PWA on iOS Safari
   answerField.addEventListener("focusin", () => {
-    // If blur protection is active, immediately blur to prevent keyboard auto-open
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      logKeyboardDebug("answer:focusin-blocked");
-      answerField.blur();
-      return;
-    }
-
     answerField.classList.add("answer-field-focused");
-    logKeyboardDebug("answer:focusin");
-
-    if (shouldUseCustomTouchKeypad()) {
-      return;
-    }
-
-    restoreAnswerFieldCaretToEnd();
-    tryShowKeyboardForOpenRequest(answerOpenRequestToken, "focusin");
   });
 
-  const tryShowKeyboardForOpenRequest = (token, source) => {
-    if (token !== answerOpenRequestToken) {
-      return;
-    }
-
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      return;
-    }
-
-    if (!hasRealAnswerFieldFocus()) {
-      return;
-    }
-
-    if (window.mathVirtualKeyboard?.visible) {
-      return;
-    }
-
-    const now = performance.now();
-    if (now - lastKeyboardShowRequestAt < 220) {
-      return;
-    }
-
-    lastKeyboardShowRequestAt = now;
-    logKeyboardDebug("answer:open-show", { source });
-    showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
-  };
-
-  const focusAnswerFieldForOpenRequest = (token, source) => {
-    if (token !== answerOpenRequestToken) {
-      return;
-    }
-
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      return;
-    }
-
+  const ensureAnswerTapFocus = () => {
     try {
       answerField.focus({ preventScroll: true });
     } catch {
       answerField.focus();
     }
-
-    restoreAnswerFieldCaretToEnd();
-    tryShowKeyboardForOpenRequest(token, source);
-  };
-
-  const ensureAnswerTapFocus = () => {
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      return;
-    }
-
-    const token = ++answerOpenRequestToken;
-    const hasRealFocus = hasRealAnswerFieldFocus();
-    const hasMathFocus = hasMathLiveAnswerFocus();
-
-    if (hasMathFocus && !hasRealFocus) {
-      logKeyboardDebug("answer:tap-stale-focus-recover");
-      forceAnswerFieldBlurReset();
-    }
-
-    if (shouldUseCustomTouchKeypad()) {
-      try {
-        answerField.focus({ preventScroll: true });
-      } catch {
-        answerField.focus();
-      }
-      // Do not force caret to end — let MathLive's tap hit-test place it where the user tapped.
-      return;
-    }
-
-    focusAnswerFieldForOpenRequest(token, "tap-initial");
-
-    [30, 80, 160].forEach((delay, index) => {
-      setTimeout(() => {
-        if (token !== answerOpenRequestToken) {
-          return;
-        }
-
-        if (hasRealAnswerFieldFocus()) {
-          tryShowKeyboardForOpenRequest(token, `tap-check-${index + 1}`);
-          return;
-        }
-
-        logKeyboardDebug("answer:tap-focus-retry", { attempt: index + 1 });
-        focusAnswerFieldForOpenRequest(token, `tap-retry-${index + 1}`);
-      }, delay);
-    });
   };
 
   answerField.addEventListener("pointerdown", ensureAnswerTapFocus, true);
@@ -876,27 +485,8 @@ function bindEvents() {
     answerField.addEventListener("touchstart", ensureAnswerTapFocus, true);
   }
 
-  if (window.mathVirtualKeyboard?.addEventListener) {
-    window.mathVirtualKeyboard.addEventListener("before-virtual-keyboard-toggle", (event) => {
-      logKeyboardDebug("vk:before-toggle", { visible: event?.detail?.visible ?? null });
-    });
-
-    window.mathVirtualKeyboard.addEventListener("virtual-keyboard-toggle", (event) => {
-      logKeyboardDebug("vk:toggle", { visible: event?.detail?.visible ?? null });
-    });
-
-    window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
-      logKeyboardDebug("vk:geometrychange", {
-        height: Math.round(window.mathVirtualKeyboard.boundingRect?.height ?? 0),
-      });
-    });
-  }
-
-  // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
-  // Explicitly blur on true outside taps so keyboard closes consistently.
   const blurOnOutsideInteraction = (event) => {
-    const keyboardVisible = Boolean(window.mathVirtualKeyboard?.visible);
-    if (!keyboardVisible && !hasMathLiveAnswerFocus()) {
+    if (!hasMathLiveAnswerFocus()) {
       return;
     }
 
@@ -910,27 +500,13 @@ function bindEvents() {
     }
     lastOutsideBlurTimestamp = now;
 
-    logKeyboardDebug("answer:outside-blur", { target: describeElement(event.target) });
-    closeMathKeyboardAndClearFocus(140);
+    forceAnswerFieldBlurReset();
+    answerField.classList.remove("answer-field-focused");
   };
 
   document.addEventListener("mouseup", blurOnOutsideInteraction, true);
   document.addEventListener("touchend", blurOnOutsideInteraction, true);
   document.addEventListener("click", blurOnOutsideInteraction, true);
-}
-
-function shouldUseVirtualKeyboard() {
-  return detectTouchDevice() || isInstalledPwaMode();
-}
-
-function isInstalledPwaMode() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.matchMedia?.("(display-mode: standalone)")?.matches
-    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
-    || window.navigator.standalone === true;
 }
 
 function isEventInsideAnswerFieldOrKeyboard(event) {
@@ -1186,67 +762,6 @@ function detectTouchDevice() {
   }
 
   return false;
-}
-
-function configureAnswerVirtualKeyboard() {
-  if (shouldUseCustomTouchKeypad()) {
-    return;
-  }
-
-  if (typeof window === "undefined" || !window.mathVirtualKeyboard) {
-    return;
-  }
-
-  const wasVisible = Boolean(window.mathVirtualKeyboard.visible);
-
-  window.mathVirtualKeyboard.layouts = [
-    createBooleanVirtualKeyboardLayout(state.notationId),
-  ];
-
-  if (shouldUseVirtualKeyboard()) {
-    window.mathVirtualKeyboard.container = document.body;
-  }
-
-  if (wasVisible) {
-    hideAnswerVirtualKeyboard();
-    showAnswerVirtualKeyboard();
-  }
-}
-
-function createBooleanVirtualKeyboardLayout(notationId) {
-  const isLogic = notationId === "logic";
-
-  return {
-    label: isLogic ? "Logic" : "AQA",
-    labelClass: "MLK__tex-math",
-    tooltip: isLogic ? "Logic notation keyboard" : "AQA notation keyboard",
-    rows: [
-      [
-        { insert: "A", label: "A" },
-        { insert: "B", label: "B" },
-        { insert: "C", label: "C" },
-        { insert: "D", label: "D" },
-        { insert: "0", label: "0" },
-        { insert: "1", label: "1" },
-      ],
-      [
-        { insert: isLogic ? "∧" : ".", label: "AND", class: "small" },
-        { insert: isLogic ? "∨" : "+", label: "OR", class: "small" },
-        {
-          insert: isLogic ? "\\lnot\\," : "\\overline{#?}",
-          label: "NOT",
-          class: "small",
-        },
-        { insert: "(", label: "(" },
-        { insert: ")", label: ")" },
-      ],
-      [
-        "[left]",
-        "[right]",
-        { label: "[backspace]", width: 3 },
-      ],
-    ],
-  };
 }
 
 function startNewChallenge() {
