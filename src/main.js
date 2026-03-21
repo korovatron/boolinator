@@ -363,35 +363,22 @@ function bindEvents() {
     }
   });
 
-  // Desktop touch emulation fallback: force host focus + keyboard on touch-like pointer.
-  const forceKeyboardOnTouchLikeInteraction = (event) => {
-    if (!window.mathVirtualKeyboard) {
+  // If the field is still focused but keyboard was dismissed, a tap should reopen it.
+  answerField.addEventListener("pointerdown", (event) => {
+    if (!window.mathVirtualKeyboard || !shouldUseVirtualKeyboard()) {
       return;
     }
 
     const pointerType = event?.pointerType;
     const touchLikePointer = pointerType === "touch" || pointerType === "pen";
-    if (!touchLikePointer && !shouldUseVirtualKeyboard()) {
+    if (!touchLikePointer && detectTouchDevice()) {
       return;
     }
 
-    answerField.classList.add("answer-field-focused");
-    if (!answerField.hasFocus || !answerField.hasFocus()) {
-      answerField.focus({ preventScroll: true });
+    if (answerField.hasFocus && answerField.hasFocus() && !window.mathVirtualKeyboard.visible) {
+      window.mathVirtualKeyboard.show({ animate: true });
     }
-    window.mathVirtualKeyboard.show({ animate: true });
-  };
-
-  answerField.addEventListener("pointerdown", forceKeyboardOnTouchLikeInteraction, true);
-  answerField.addEventListener("touchstart", forceKeyboardOnTouchLikeInteraction, true);
-
-  // In some touch/PWA contexts, taps edit content but host focus visuals lag.
-  // For reliability, force host focus when user taps the field.
-  answerField.addEventListener("click", () => {
-    if (!answerField.hasFocus || !answerField.hasFocus()) {
-      answerField.focus({ preventScroll: true });
-    }
-  });
+  }, true);
 
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
@@ -405,6 +392,17 @@ function bindEvents() {
     }
 
     answerField.blur();
+    answerField.classList.remove("answer-field-focused");
+    if (window.mathVirtualKeyboard?.visible) {
+      window.mathVirtualKeyboard.hide({ animate: true });
+    }
+
+    // iOS can occasionally retain focus after blur when tapping non-focusable UI.
+    setTimeout(() => {
+      if (answerField.hasFocus && answerField.hasFocus()) {
+        answerField.blur();
+      }
+    }, 0);
   }, true);
 }
 
