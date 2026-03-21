@@ -121,7 +121,7 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v30";
+const VK_DEBUG_OVERLAY_VERSION = "v31";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -414,7 +414,9 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
     }
 
     if (reopenKeyboard && !realFocused) {
-      logKeyboardDebug("reconnect:skip-show", { reason: "real focus missing" });
+      logKeyboardDebug("reconnect:soft-show", { reason: "real focus missing" });
+      // Keep keyboard available even when iOS delays DOM focus assignment.
+      showAnswerVirtualKeyboard({ requireRealFocus: false });
     }
   };
 
@@ -787,6 +789,9 @@ function bindEvents() {
 
       if (!realFocused) {
         logKeyboardDebug("answer:reopen-fallback", { reason: "real focus missing" });
+        // Use the direct tap gesture to open keyboard immediately,
+        // then continue reconnect attempts to recover real DOM focus.
+        showAnswerVirtualKeyboard({ requireRealFocus: false });
         reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
         return;
       }
