@@ -165,13 +165,7 @@ body[data-theme="light"] .hero {
   display: none;
 }
 
-body[data-theme="light"] .hero-logo-dark {
-  display: none;
-}
 
-body[data-theme="light"] .hero-logo-light {
-  display: block;
-}
 
 .eyebrow {
   margin: 0;
