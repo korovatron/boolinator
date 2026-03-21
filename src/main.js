@@ -121,7 +121,7 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v28";
+const VK_DEBUG_OVERLAY_VERSION = "v29";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
