@@ -121,7 +121,7 @@ let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
 let lastReopenRequestTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v31";
+const VK_DEBUG_OVERLAY_VERSION = "v32";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -414,9 +414,7 @@ function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
     }
 
     if (reopenKeyboard && !realFocused) {
-      logKeyboardDebug("reconnect:soft-show", { reason: "real focus missing" });
-      // Keep keyboard available even when iOS delays DOM focus assignment.
-      showAnswerVirtualKeyboard({ requireRealFocus: false });
+      logKeyboardDebug("reconnect:skip-show", { reason: "real focus missing" });
     }
   };
 
@@ -767,13 +765,8 @@ function bindEvents() {
     if (hasMathLiveFocus || !hasRealAnswerFieldFocus()) {
       logKeyboardDebug("answer:reopen-request");
 
-      // Reset stale MathLive focus state, then immediately refocus/show in this tap path.
-      try {
-        answerField.blur();
-      } catch {
-        // Ignore blur failures; we'll still attempt a fresh focus.
-      }
-
+      // Keep this as a pure focus recovery path; showing keyboard without real focus
+      // can produce iOS key sounds/error tones with no inserted text.
       try {
         answerField.focus({ preventScroll: true });
       } catch {
@@ -789,9 +782,6 @@ function bindEvents() {
 
       if (!realFocused) {
         logKeyboardDebug("answer:reopen-fallback", { reason: "real focus missing" });
-        // Use the direct tap gesture to open keyboard immediately,
-        // then continue reconnect attempts to recover real DOM focus.
-        showAnswerVirtualKeyboard({ requireRealFocus: false });
         reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
         return;
       }
