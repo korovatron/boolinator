@@ -266,6 +266,10 @@ function bindEvents() {
     state.themeId = state.themeId === "dark" ? "light" : "dark";
     applyTheme();
     renderThemeToggle();
+    // Close keyboard on theme toggle
+    if (answerField.hasFocus && answerField.hasFocus()) {
+      answerField.blur();
+    }
 
     try {
       window.localStorage.setItem("boolinator-theme", state.themeId);
@@ -277,6 +281,10 @@ function bindEvents() {
   notationToggle.addEventListener("click", () => {
     state.notationId = state.notationId === "aqa" ? "logic" : "aqa";
     renderNotationToggle();
+    // Close keyboard on notation toggle
+    if (answerField.hasFocus && answerField.hasFocus()) {
+      answerField.blur();
+    }
     applyNotationMode();
   });
 
@@ -306,6 +314,10 @@ function bindEvents() {
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
     checkAnswer();
+    // Blur field to close keyboard after check
+    if (answerField.hasFocus && answerField.hasFocus()) {
+      answerField.blur();
+    }
   });
 
   document.querySelector("#hintBtn").addEventListener("click", () => {
@@ -321,7 +333,27 @@ function bindEvents() {
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
+    // Explicitly hide virtual keyboard on blur for iOS
+    if (window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.hide();
+    }
   });
+
+  // iOS fix: Close keyboard when clicking outside the field
+  document.addEventListener("click", (e) => {
+    const isClickOnField = answerField.contains(e.target) || 
+                          e.target === answerField ||
+                          e.composedPath().includes(answerField);
+    
+    if (!isClickOnField && answerField.hasFocus && answerField.hasFocus()) {
+      // Blur the field to close the keyboard
+      answerField.blur();
+      // Explicitly hide the keyboard
+      if (window.mathVirtualKeyboard) {
+        window.mathVirtualKeyboard.hide();
+      }
+    }
+  }, true);
 
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
   // This happens when the app is installed as PWA on iOS Safari
