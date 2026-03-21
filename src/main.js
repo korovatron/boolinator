@@ -170,12 +170,6 @@ function createKeyboardDebugOverlay() {
     panel.classList.toggle("hidden", !enabled);
     toggle.classList.toggle("is-active", enabled);
     toggle.textContent = enabled ? "VK Debug ON" : "VK Debug";
-
-    try {
-      window.localStorage.setItem("boolinator-vk-debug", enabled ? "1" : "0");
-    } catch {
-      // Ignore storage errors.
-    }
   };
 
   const appendLine = (line) => {
@@ -222,12 +216,10 @@ function createKeyboardDebugOverlay() {
     }
   });
 
-  document.body.append(toggle, panel);
-
   try {
-    const saved = window.localStorage.getItem("boolinator-vk-debug") === "1";
     const forced = new URLSearchParams(window.location.search).get("vkdebug") === "1";
-    if (saved || forced) {
+    if (forced) {
+      document.body.append(toggle, panel);
       setEnabled(true);
       appendLine("--- debug panel auto-enabled ---");
     }
@@ -883,31 +875,6 @@ function bindEvents() {
   if (!window.PointerEvent) {
     answerField.addEventListener("touchstart", ensureAnswerTapFocus, true);
   }
-
-  const recoverAnswerFieldAfterResume = () => {
-    // Disabled: resume-time reconnect can race with user tap focus flows.
-  };
-
-  document.addEventListener("visibilitychange", () => {
-    logKeyboardDebug("app:visibilitychange", { state: document.visibilityState });
-    if (document.visibilityState === "visible") {
-      setTimeout(recoverAnswerFieldAfterResume, 0);
-    }
-  });
-
-  window.addEventListener("focus", () => {
-    logKeyboardDebug("app:window-focus", { state: document.visibilityState });
-    if (document.visibilityState === "visible") {
-      setTimeout(recoverAnswerFieldAfterResume, 0);
-    }
-  });
-
-  window.addEventListener("pageshow", () => {
-    logKeyboardDebug("app:pageshow", { state: document.visibilityState });
-    if (document.visibilityState === "visible") {
-      setTimeout(recoverAnswerFieldAfterResume, 0);
-    }
-  });
 
   if (window.mathVirtualKeyboard?.addEventListener) {
     window.mathVirtualKeyboard.addEventListener("before-virtual-keyboard-toggle", (event) => {
