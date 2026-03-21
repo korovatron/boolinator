@@ -339,21 +339,25 @@ function bindEvents() {
     }
   });
 
-  // iOS fix: Close keyboard when clicking outside the field
-  document.addEventListener("click", (e) => {
-    const isClickOnField = answerField.contains(e.target) || 
-                          e.target === answerField ||
-                          e.composedPath().includes(answerField);
-    
-    if (!isClickOnField && answerField.hasFocus && answerField.hasFocus()) {
-      // Blur the field to close the keyboard
-      answerField.blur();
-      // Explicitly hide the keyboard
-      if (window.mathVirtualKeyboard) {
-        window.mathVirtualKeyboard.hide();
-      }
+  // iOS fix: Close keyboard when tapping outside both field and keyboard.
+  // Use pointer/touch start to reliably catch outside taps in iOS PWA mode.
+  const closeKeyboardOnOutsideTap = (event) => {
+    if (!answerField.hasFocus || !answerField.hasFocus()) {
+      return;
     }
-  }, true);
+
+    if (isEventInsideAnswerFieldOrKeyboard(event)) {
+      return;
+    }
+
+    answerField.blur();
+    if (window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.hide();
+    }
+  };
+
+  document.addEventListener("pointerdown", closeKeyboardOnOutsideTap, true);
+  document.addEventListener("touchstart", closeKeyboardOnOutsideTap, true);
 
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
   // This happens when the app is installed as PWA on iOS Safari
@@ -364,7 +368,48 @@ function bindEvents() {
       answerField.blur();
       return;
     }
+
+    // In installed iOS PWA mode, MathLive can miss auto-show on focus.
+    // Force-show the keyboard when a touch device focuses the answer field.
+    if (isTouchDevice && isPwaDisplayMode() && window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.show();
+    }
   });
+}
+
+function isPwaDisplayMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+    || window.navigator.standalone === true;
+}
+
+function isEventInsideAnswerFieldOrKeyboard(event) {
+  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+
+  if (path.includes(answerField)) {
+    return true;
+  }
+
+  for (const node of path) {
+    if (!(node instanceof Element)) {
+      continue;
+    }
+
+    if (node.closest?.("#answerField")) {
+      return true;
+    }
+
+    // MathLive keyboard containers and parts
+    if (node.closest?.(".ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function handleClipboardEvent(event) {
