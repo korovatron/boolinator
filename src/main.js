@@ -680,6 +680,41 @@ function formatAstForAnswerField(ast) {
   return latex.replace(/\\,?\\cdot\\,?/g, ".");
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatHintExpressionForNotation(expression, notationId) {
+  if (notationId !== "logic") {
+    return expression;
+  }
+
+  const withPrefixNot = expression.replace(/([A-Za-z0-9\)])'/g, "¬$1");
+  return withPrefixNot
+    .replace(/\s*\+\s*/g, " ∨ ")
+    .replace(/\s*\.\s*/g, " ∧ ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatHintMessageHtml(message, notationId) {
+  const segments = String(message).split(/`([^`]+)`/g);
+  return segments
+    .map((segment, index) => {
+      if (index % 2 === 1) {
+        const formatted = formatHintExpressionForNotation(segment, notationId);
+        return `<span class="hint-expression">${escapeHtml(formatted)}</span>`;
+      }
+      return escapeHtml(segment);
+    })
+    .join("");
+}
+
 function renderHint() {
   const latestAst = state.equivalentSubmissions.at(-1) ?? null;
   const hintSourceAst = latestAst ?? state.challenge.initialAst;
@@ -688,7 +723,10 @@ function renderHint() {
   if (latestAst && latestGateCount <= state.challenge.minimalGateCount) {
     hintField.classList.add("hidden");
     setFieldValue(hintField, "");
-    hintText.textContent = "Your latest correct line is already at the best possible gate count for this challenge.";
+    hintText.innerHTML = formatHintMessageHtml(
+      "Your latest correct line is already at the best possible gate count for this challenge.",
+      state.notationId,
+    );
     return;
   }
 
@@ -696,7 +734,10 @@ function renderHint() {
   if (!hint) {
     hintField.classList.add("hidden");
     setFieldValue(hintField, "");
-    hintText.textContent = "Look for a redundant 0 or 1, a complement pair, absorption, or a negated bracket that can be opened up.";
+    hintText.innerHTML = formatHintMessageHtml(
+      "Look for a redundant `0` or `1`, a complement pair, absorption, or a negated bracket that can be opened up.",
+      state.notationId,
+    );
     return;
   }
 
@@ -708,7 +749,7 @@ function renderHint() {
     setFieldValue(hintField, "");
   }
 
-  hintText.textContent = hint.message;
+  hintText.innerHTML = formatHintMessageHtml(hint.message, state.notationId);
 }
 
 function findGateReductionHint(ast) {
@@ -719,7 +760,7 @@ function findGateReductionHint(ast) {
   if (ast.type === "not" && ast.expr?.type === "not") {
     return {
       focusAst: ast,
-      message: "This part has a double negation. Remove the two NOTs together.",
+      message: "This part has a double negation. Remove the two `NOT`s together.",
     };
   }
 
@@ -746,14 +787,14 @@ function findGateReductionHint(ast) {
       if (operands.some((operand) => operand.type === "const" && operand.value)) {
         return {
           focusAst: ast,
-          message: "This bracket contains + 1. The whole OR expression collapses to 1.",
+          message: "This bracket contains `+ 1`. The whole OR expression collapses to `1`.",
         };
       }
 
       if (operands.some((operand) => operand.type === "const" && !operand.value)) {
         return {
           focusAst: ast,
-          message: "This part contains + 0. Use the identity law to remove the 0 term.",
+          message: "This part contains `+ 0`. Use the identity law to remove the `0` term.",
         };
       }
     }
@@ -762,14 +803,14 @@ function findGateReductionHint(ast) {
       if (operands.some((operand) => operand.type === "const" && !operand.value)) {
         return {
           focusAst: ast,
-          message: "This bracket contains .0. The whole AND expression collapses to 0.",
+          message: "This bracket contains `.0`. The whole AND expression collapses to `0`.",
         };
       }
 
       if (operands.some((operand) => operand.type === "const" && operand.value)) {
         return {
           focusAst: ast,
-          message: "This part contains .1. Use the identity law to remove the 1 term.",
+          message: "This part contains `.1`. Use the identity law to remove the `1` term.",
         };
       }
     }
@@ -779,8 +820,8 @@ function findGateReductionHint(ast) {
       return {
         focusAst: ast,
         message: ast.type === "or"
-          ? "This part repeats the same term in an OR. Use idempotent law: X + X = X."
-          : "This part repeats the same term in an AND. Use idempotent law: X.X = X.",
+          ? "This part repeats the same term in an OR. Use idempotent law: `X + X = X`."
+          : "This part repeats the same term in an AND. Use idempotent law: `X.X = X`.",
       };
     }
 
@@ -788,8 +829,8 @@ function findGateReductionHint(ast) {
       return {
         focusAst: ast,
         message: ast.type === "or"
-          ? "This part contains a complement pair. Use X + X' = 1."
-          : "This part contains a complement pair. Use X.X' = 0.",
+          ? "This part contains a complement pair. Use `X + X' = 1`."
+          : "This part contains a complement pair. Use `X.X' = 0`.",
       };
     }
 
@@ -798,8 +839,8 @@ function findGateReductionHint(ast) {
       return {
         focusAst: ast,
         message: ast.type === "or"
-          ? "This matches absorption. Use X + X.Y = X."
-          : "This matches absorption. Use X.(X + Y) = X.",
+          ? "This matches absorption. Use `X + X.Y = X`."
+          : "This matches absorption. Use `X.(X + Y) = X`.",
       };
     }
   }
@@ -1019,7 +1060,7 @@ function checkAnswer() {
   renderGateMetrics();
 
   if (!equivalent) {
-    setFeedback("Not equivalent yet. Keep the same truth table while simplifying.", "error", []);
+    setFeedback("Your expression is not equivalent.", "error", []);
     return;
   }
 
