@@ -508,6 +508,38 @@ body[data-theme="light"] #hintField::part(content) {
   outline: none !important;
 }
 
+.touch-keypad {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-key {
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  background:
+    linear-gradient(145deg, rgba(0, 216, 255, 0.14), rgba(77, 255, 184, 0.1)),
+    var(--surface-elevated);
+  color: var(--ink);
+  font: 600 0.9rem/1 "IBM Plex Mono", monospace;
+}
+
+.touch-key:active {
+  transform: translateY(1px);
+  background:
+    linear-gradient(145deg, rgba(0, 216, 255, 0.22), rgba(77, 255, 184, 0.16)),
+    var(--surface-elevated);
+}
+
+body[data-theme="light"] .touch-key {
+  border-color: rgba(16, 96, 146, 0.32);
+}
+
 body[data-theme="light"] #answerField {
   --answer-border-unfocused: rgba(16, 96, 146, 0.38);
   --answer-glow-unfocused: rgba(16, 96, 146, 0.18);
@@ -767,6 +799,23 @@ body[data-theme="light"] .hint-expression {
 
 .hidden {
   display: none;
+}
+
+@media (pointer: fine) {
+  .touch-keypad {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .touch-keypad {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .touch-key {
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
 }
 
 .vk-debug-toggle {

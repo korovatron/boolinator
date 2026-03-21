@@ -71,6 +71,7 @@ root.innerHTML = `
       </div>
       <p id="notationHelp" class="notation-help"></p>
       <math-field id="answerField" default-mode="math"></math-field>
+      <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
         <button id="clearBtn" class="ghost-btn">Clear</button>
         <button id="hintBtn" class="ghost-btn">Hint</button>
@@ -97,6 +98,7 @@ const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
 const answerPanel = document.querySelector(".panel.answer");
 const answerField = document.querySelector("#answerField");
+const touchKeypad = document.querySelector("#touchKeypad");
 const inputTip = document.querySelector("#inputTip");
 const feedbackSummary = document.querySelector("#feedbackSummary");
 const feedbackDetails = document.querySelector("#feedbackDetails");
@@ -118,9 +120,10 @@ const state = {
 };
 
 let _originalKeybindings = null;
-let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v39";
+let answerOpenRequestToken = 0;
+let lastKeyboardShowRequestAt = 0;
+const VK_DEBUG_OVERLAY_VERSION = "v59";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -289,38 +292,21 @@ function hasRealAnswerFieldFocus() {
   return document.activeElement === answerField;
 }
 
-/**
- * Protects math-field elements from auto-focus on iOS PWA
- * Prevents virtual keyboard from looping when dismissed
- * @param {number} duration - How long to maintain protection (ms)
- */
-function protectFieldsFromAutoFocus(duration = 500) {
-  const field = answerField;
-  if (field) {
-    // Set protection flag
-    field.setAttribute("data-blur-protected", "true");
-    
-    // If field has focus, blur it first
-    if (field.hasFocus && field.hasFocus()) {
-      field.blur();
-    }
-    
-    // Remove protection after specified duration
-    setTimeout(() => {
-      field.removeAttribute("data-blur-protected");
-    }, duration);
-  }
+function hasMathLiveAnswerFocus() {
+  return Boolean(answerField?.hasFocus && answerField.hasFocus());
 }
 
-function closeMathKeyboardAndClearFocus(duration = 500) {
-  const mathFields = document.querySelectorAll("math-field");
+function shouldUseCustomTouchKeypad() {
+  return detectTouchDevice();
+}
 
-  mathFields.forEach((field) => {
-    if (field.hasFocus && field.hasFocus()) {
-      field.blur();
-    }
-    field.setAttribute("data-blur-protected", "true");
-  });
+function closeMathKeyboardAndClearFocus(duration = 140) {
+  answerOpenRequestToken += 1;
+  answerField.setAttribute("data-blur-protected", "true");
+
+  if (answerField.hasFocus && answerField.hasFocus()) {
+    answerField.blur();
+  }
 
   answerField.classList.remove("answer-field-focused");
 
@@ -328,10 +314,9 @@ function closeMathKeyboardAndClearFocus(duration = 500) {
   forceAnswerFieldBlurReset();
 
   setTimeout(() => {
-    mathFields.forEach((field) => {
-      field.removeAttribute("data-blur-protected");
-    });
-  }, duration);
+    answerField.removeAttribute("data-blur-protected");
+    answerField.classList.remove("answer-field-focused");
+  }, Math.max(500, duration));
 }
 
 function forceAnswerFieldBlurReset() {
@@ -354,6 +339,14 @@ function restoreAnswerFieldCaretToEnd() {
   }
 
   const applySelection = () => {
+    if (!hasRealAnswerFieldFocus()) {
+      return;
+    }
+
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      return;
+    }
+
     try {
       answerField.selection = { ranges: [[Infinity, Infinity]] };
     } catch {
@@ -363,74 +356,6 @@ function restoreAnswerFieldCaretToEnd() {
 
   queueMicrotask(applySelection);
   setTimeout(applySelection, 10);
-}
-
-function reconnectAnswerFieldInputTarget({ reopenKeyboard = true } = {}) {
-  logKeyboardDebug("reconnect:start", { reopenKeyboard });
-
-  if (!answerField || !shouldUseVirtualKeyboard()) {
-    logKeyboardDebug("reconnect:skip", { reason: "keyboard unavailable" });
-    return;
-  }
-
-  if (answerField.getAttribute("data-blur-protected") === "true") {
-    logKeyboardDebug("reconnect:skip", { reason: "blur protected" });
-    return;
-  }
-
-  const reconnectToken = ++answerFieldReconnectToken;
-
-  const reconnect = (attempt = 0) => {
-    if (reconnectToken !== answerFieldReconnectToken) {
-      return;
-    }
-
-    if (answerField.getAttribute("data-blur-protected") === "true") {
-      return;
-    }
-
-    // iOS can leave MathLive internally focused while DOM focus is on body.
-    // Clear stale internal focus once before retrying focus acquisition.
-    if (
-      attempt === 0
-      && answerField.hasFocus
-      && answerField.hasFocus()
-      && !hasRealAnswerFieldFocus()
-    ) {
-      forceAnswerFieldBlurReset();
-    }
-
-    answerField.classList.add("answer-field-focused");
-
-    try {
-      answerField.focus({ preventScroll: true });
-    } catch {
-      answerField.focus();
-    }
-
-    restoreAnswerFieldCaretToEnd();
-
-    const realFocused = hasRealAnswerFieldFocus();
-    logKeyboardDebug("reconnect:focus-check", { attempt, realFocused });
-
-    if (!realFocused && attempt < 4) {
-      setTimeout(() => reconnect(attempt + 1), 40 * (attempt + 1));
-      return;
-    }
-
-    if (reopenKeyboard && realFocused) {
-      showAnswerVirtualKeyboard({ requireRealFocus: true });
-      return;
-    }
-
-    if (reopenKeyboard && !realFocused) {
-      logKeyboardDebug("reconnect:skip-show", { reason: "real focus missing" });
-    }
-  };
-
-  requestAnimationFrame(() => {
-    reconnect();
-  });
 }
 
 function showAnswerVirtualKeyboard(options = {}) {
@@ -464,14 +389,6 @@ function showAnswerVirtualKeyboard(options = {}) {
     logKeyboardDebug("keyboard:update", { ok: false });
   }
 
-  if (typeof answerField.executeCommand === "function") {
-    const shown = answerField.executeCommand("showVirtualKeyboard");
-    logKeyboardDebug("keyboard:execute:showVirtualKeyboard", { shown });
-    if (shown) {
-      return;
-    }
-  }
-
   try {
     window.mathVirtualKeyboard.show({ animate: true });
     logKeyboardDebug("keyboard:show", { mode: "global-animate" });
@@ -485,11 +402,6 @@ function hideAnswerVirtualKeyboard() {
   if (!window.mathVirtualKeyboard) {
     logKeyboardDebug("keyboard:hide:skip", { reason: "keyboard unavailable" });
     return;
-  }
-
-  if (typeof answerField?.executeCommand === "function") {
-    const hidden = answerField.executeCommand("hideVirtualKeyboard");
-    logKeyboardDebug("keyboard:execute:hideVirtualKeyboard", { hidden });
   }
 
   try {
@@ -528,19 +440,20 @@ function applyTheme() {
 function setupMathFields() {
   isTouchDevice = detectTouchDevice();
   const useVirtualKeyboard = shouldUseVirtualKeyboard();
+  const useCustomTouchKeypad = shouldUseCustomTouchKeypad();
 
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
-  answerField.mathVirtualKeyboardPolicy = "auto";
+  answerField.mathVirtualKeyboardPolicy = useCustomTouchKeypad ? "manual" : "auto";
   answerField.setAttribute(
     "math-virtual-keyboard-policy",
-    "auto",
+    useCustomTouchKeypad ? "manual" : "auto",
   );
   answerField.setAttribute(
     "virtual-keyboard-mode",
-    useVirtualKeyboard ? "onfocus" : "manual",
+    useCustomTouchKeypad ? "manual" : (useVirtualKeyboard ? "onfocus" : "manual"),
   );
 
   disableMathFieldContextMenu(challengeField);
@@ -554,6 +467,123 @@ function setupMathFields() {
 
   applyAnswerKeybindings();
   configureAnswerVirtualKeyboard();
+  renderTouchKeypad();
+  bindTouchKeypadEvents();
+}
+
+function getTouchKeypadLayout() {
+  const isLogic = state.notationId === "logic";
+  return [
+    { action: "A", label: "A" },
+    { action: "B", label: "B" },
+    { action: "C", label: "C" },
+    { action: "D", label: "D" },
+    { action: "ZERO", label: "0" },
+    { action: "ONE", label: "1" },
+    { action: "AND", label: isLogic ? "∧" : "." },
+    { action: "OR", label: isLogic ? "∨" : "+" },
+    { action: "NOT", label: isLogic ? "¬" : "NOT" },
+    { action: "LPAREN", label: "(" },
+    { action: "RPAREN", label: ")" },
+    { action: "LEFT", label: "←" },
+    { action: "RIGHT", label: "→" },
+    { action: "BACKSPACE", label: "⌫" },
+  ];
+}
+
+function renderTouchKeypad() {
+  if (!touchKeypad) {
+    return;
+  }
+
+  if (!shouldUseCustomTouchKeypad()) {
+    touchKeypad.classList.add("hidden");
+    touchKeypad.innerHTML = "";
+    return;
+  }
+
+  const keys = getTouchKeypadLayout();
+  touchKeypad.innerHTML = keys
+    .map((key) => `<button type="button" class="touch-key" data-touch-key="${key.action}">${key.label}</button>`)
+    .join("");
+  touchKeypad.classList.remove("hidden");
+}
+
+function runTouchKeypadAction(action) {
+  if (!action || !answerField) {
+    return;
+  }
+
+  try {
+    answerField.focus({ preventScroll: true });
+  } catch {
+    answerField.focus();
+  }
+
+  const isLogic = state.notationId === "logic";
+
+  switch (action) {
+    case "A":
+    case "B":
+    case "C":
+    case "D":
+      insertAqaAwareToken(action);
+      break;
+    case "ZERO":
+      insertAqaAwareToken("0");
+      break;
+    case "ONE":
+      insertAqaAwareToken("1");
+      break;
+    case "AND":
+      insertIntoAnswer(isLogic ? "∧" : ".");
+      break;
+    case "OR":
+      insertIntoAnswer(isLogic ? "∨" : "+");
+      break;
+    case "NOT":
+      if (isLogic) {
+        insertIntoAnswer("\\lnot\\,");
+      } else {
+        insertOverbarPlaceholder();
+      }
+      break;
+    case "LPAREN":
+      insertIntoAnswer("(");
+      break;
+    case "RPAREN":
+      insertIntoAnswer(")");
+      break;
+    case "LEFT":
+      answerField.executeCommand?.("moveToPreviousChar");
+      break;
+    case "RIGHT":
+      answerField.executeCommand?.("moveToNextChar");
+      break;
+    case "BACKSPACE":
+      answerField.executeCommand?.("deleteBackward");
+      break;
+    default:
+      break;
+  }
+}
+
+function bindTouchKeypadEvents() {
+  if (!touchKeypad || touchKeypad.dataset.bound === "1") {
+    return;
+  }
+
+  touchKeypad.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest(".touch-key");
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    runTouchKeypadAction(button.getAttribute("data-touch-key"));
+  });
+
+  touchKeypad.dataset.bound = "1";
 }
 
 function makeReadonlyMathFieldUnfocusable(field) {
@@ -682,32 +712,34 @@ function bindEvents() {
     retranslateAnswerField();
     applyAnswerKeybindings();
     configureAnswerVirtualKeyboard();
+    renderTouchKeypad();
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
-    // Protect against iOS PWA keyboard loop during major state change
-    protectFieldsFromAutoFocus(300);
     startNewChallenge();
   });
 
   document.querySelector("#clearBtn").addEventListener("click", () => {
-    // Protect against iOS PWA keyboard loop during field clear/refocus
-    protectFieldsFromAutoFocus(300);
     setFieldValue(answerField, "");
-    answerField.focus();
+    try {
+      answerField.focus({ preventScroll: true });
+    } catch {
+      answerField.focus();
+    }
   });
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
     checkAnswer();
-    // Blur field to close keyboard after check
-    if (answerField.hasFocus && answerField.hasFocus()) {
-      closeMathKeyboardAndClearFocus();
+    if (shouldUseCustomTouchKeypad()) {
+      forceAnswerFieldBlurReset();
+      answerField.classList.remove("answer-field-focused");
+      return;
     }
+
+    closeMathKeyboardAndClearFocus(500);
   });
 
   document.querySelector("#hintBtn").addEventListener("click", () => {
-    // Protect against iOS PWA keyboard loop when panel state changes
-    protectFieldsFromAutoFocus(300);
     hintArea.classList.remove("hidden");
     renderHint();
   });
@@ -739,10 +771,10 @@ function bindEvents() {
 
   // iOS PWA fix: Prevent virtual keyboard auto-open loop on focus
   // This happens when the app is installed as PWA on iOS Safari
-  answerField.addEventListener("focusin", (e) => {
+  answerField.addEventListener("focusin", () => {
     // If blur protection is active, immediately blur to prevent keyboard auto-open
     if (answerField.getAttribute("data-blur-protected") === "true") {
-      e.preventDefault();
+      logKeyboardDebug("answer:focusin-blocked");
       answerField.blur();
       return;
     }
@@ -750,19 +782,110 @@ function bindEvents() {
     answerField.classList.add("answer-field-focused");
     restoreAnswerFieldCaretToEnd();
     logKeyboardDebug("answer:focusin");
+
+    if (shouldUseCustomTouchKeypad()) {
+      return;
+    }
+
+    tryShowKeyboardForOpenRequest(answerOpenRequestToken, "focusin");
   });
 
+  const tryShowKeyboardForOpenRequest = (token, source) => {
+    if (token !== answerOpenRequestToken) {
+      return;
+    }
+
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      return;
+    }
+
+    if (!hasRealAnswerFieldFocus()) {
+      return;
+    }
+
+    if (window.mathVirtualKeyboard?.visible) {
+      return;
+    }
+
+    const now = performance.now();
+    if (now - lastKeyboardShowRequestAt < 220) {
+      return;
+    }
+
+    lastKeyboardShowRequestAt = now;
+    logKeyboardDebug("answer:open-show", { source });
+    showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
+  };
+
+  const focusAnswerFieldForOpenRequest = (token, source) => {
+    if (token !== answerOpenRequestToken) {
+      return;
+    }
+
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      return;
+    }
+
+    try {
+      answerField.focus({ preventScroll: true });
+    } catch {
+      answerField.focus();
+    }
+
+    restoreAnswerFieldCaretToEnd();
+    tryShowKeyboardForOpenRequest(token, source);
+  };
+
+  const ensureAnswerTapFocus = () => {
+    if (answerField.getAttribute("data-blur-protected") === "true") {
+      return;
+    }
+
+    const token = ++answerOpenRequestToken;
+    const hasRealFocus = hasRealAnswerFieldFocus();
+    const hasMathFocus = hasMathLiveAnswerFocus();
+
+    if (hasMathFocus && !hasRealFocus) {
+      logKeyboardDebug("answer:tap-stale-focus-recover");
+      forceAnswerFieldBlurReset();
+    }
+
+    if (shouldUseCustomTouchKeypad()) {
+      try {
+        answerField.focus({ preventScroll: true });
+      } catch {
+        answerField.focus();
+      }
+      restoreAnswerFieldCaretToEnd();
+      return;
+    }
+
+    focusAnswerFieldForOpenRequest(token, "tap-initial");
+
+    [30, 80, 160].forEach((delay, index) => {
+      setTimeout(() => {
+        if (token !== answerOpenRequestToken) {
+          return;
+        }
+
+        if (hasRealAnswerFieldFocus()) {
+          tryShowKeyboardForOpenRequest(token, `tap-check-${index + 1}`);
+          return;
+        }
+
+        logKeyboardDebug("answer:tap-focus-retry", { attempt: index + 1 });
+        focusAnswerFieldForOpenRequest(token, `tap-retry-${index + 1}`);
+      }, delay);
+    });
+  };
+
+  answerField.addEventListener("pointerdown", ensureAnswerTapFocus, true);
+  if (!window.PointerEvent) {
+    answerField.addEventListener("touchstart", ensureAnswerTapFocus, true);
+  }
+
   const recoverAnswerFieldAfterResume = () => {
-    if (!shouldUseVirtualKeyboard()) {
-      return;
-    }
-
-    if (!answerField.hasFocus || !answerField.hasFocus()) {
-      return;
-    }
-
-    reconnectAnswerFieldInputTarget();
-    logKeyboardDebug("app:resume-reconnect");
+    // Disabled: resume-time reconnect can race with user tap focus flows.
   };
 
   document.addEventListener("visibilitychange", () => {
@@ -805,7 +928,8 @@ function bindEvents() {
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
   const blurOnOutsideInteraction = (event) => {
-    if (!answerField.hasFocus || !answerField.hasFocus()) {
+    const keyboardVisible = Boolean(window.mathVirtualKeyboard?.visible);
+    if (!keyboardVisible && !hasMathLiveAnswerFocus()) {
       return;
     }
 
@@ -820,7 +944,7 @@ function bindEvents() {
     lastOutsideBlurTimestamp = now;
 
     logKeyboardDebug("answer:outside-blur", { target: describeElement(event.target) });
-    closeMathKeyboardAndClearFocus();
+    closeMathKeyboardAndClearFocus(140);
   };
 
   document.addEventListener("mouseup", blurOnOutsideInteraction, true);
@@ -1098,6 +1222,10 @@ function detectTouchDevice() {
 }
 
 function configureAnswerVirtualKeyboard() {
+  if (shouldUseCustomTouchKeypad()) {
+    return;
+  }
+
   if (typeof window === "undefined" || !window.mathVirtualKeyboard) {
     return;
   }
