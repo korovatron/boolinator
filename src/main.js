@@ -73,7 +73,6 @@ root.innerHTML = `
       <math-field id="answerField" default-mode="math"></math-field>
       <div class="actions">
         <button id="clearBtn" class="ghost-btn">Clear</button>
-        <button id="keyboardBtn" class="ghost-btn">Keyboard</button>
         <button id="hintBtn" class="ghost-btn">Hint</button>
         <button id="checkBtn" class="primary-btn">Submit</button>
       </div>
@@ -121,8 +120,7 @@ const state = {
 let _originalKeybindings = null;
 let answerFieldReconnectToken = 0;
 let lastOutsideBlurTimestamp = 0;
-let suppressOutsideBlurUntil = 0;
-const VK_DEBUG_OVERLAY_VERSION = "v38";
+const VK_DEBUG_OVERLAY_VERSION = "v39";
 const keyboardDebug = createKeyboardDebugOverlay();
 
 function createKeyboardDebugOverlay() {
@@ -503,77 +501,6 @@ function hideAnswerVirtualKeyboard() {
   }
 }
 
-function updateManualKeyboardButtonLabel() {
-  const keyboardBtn = document.querySelector("#keyboardBtn");
-  if (!keyboardBtn) {
-    return;
-  }
-
-  const isVisible = Boolean(window.mathVirtualKeyboard?.visible);
-  keyboardBtn.textContent = isVisible ? "Hide Keyboard" : "Show Keyboard";
-}
-
-function toggleManualAnswerKeyboard() {
-  if (!window.mathVirtualKeyboard) {
-    return;
-  }
-
-  if (window.mathVirtualKeyboard.visible) {
-    suppressOutsideBlurUntil = performance.now() + 500;
-    closeMathKeyboardAndClearFocus(300);
-    updateManualKeyboardButtonLabel();
-    logKeyboardDebug("keyboard:manual-hide");
-    return;
-  }
-
-  // Manual reopen should not be blocked by previous close protection windows.
-  answerField.removeAttribute("data-blur-protected");
-
-  if (answerField.hasFocus && answerField.hasFocus() && !hasRealAnswerFieldFocus()) {
-    forceAnswerFieldBlurReset();
-  }
-
-  suppressOutsideBlurUntil = performance.now() + 500;
-
-  try {
-    answerField.focus({ preventScroll: true });
-  } catch {
-    answerField.focus();
-  }
-
-  restoreAnswerFieldCaretToEnd();
-  const realFocused = hasRealAnswerFieldFocus();
-  logKeyboardDebug("keyboard:manual-open-request", { realFocused });
-
-  if (!realFocused) {
-    requestAnimationFrame(() => {
-      try {
-        answerField.focus({ preventScroll: true });
-      } catch {
-        answerField.focus();
-      }
-
-      restoreAnswerFieldCaretToEnd();
-      const retryRealFocused = hasRealAnswerFieldFocus();
-      logKeyboardDebug("keyboard:manual-open-retry", { realFocused: retryRealFocused });
-
-      if (retryRealFocused) {
-        showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
-      } else if (shouldUseVirtualKeyboard()) {
-        reconnectAnswerFieldInputTarget({ reopenKeyboard: true });
-      } else {
-        showAnswerVirtualKeyboard({ requireRealFocus: false, force: true });
-      }
-
-      updateManualKeyboardButtonLabel();
-    });
-    return;
-  }
-
-  showAnswerVirtualKeyboard({ requireRealFocus: true, force: true });
-  updateManualKeyboardButtonLabel();
-}
-
 initializeTheme();
 setupMathFields();
 renderThemeToggle();
@@ -606,10 +533,10 @@ function setupMathFields() {
   hintField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
-  answerField.mathVirtualKeyboardPolicy = "manual";
+  answerField.mathVirtualKeyboardPolicy = "auto";
   answerField.setAttribute(
     "math-virtual-keyboard-policy",
-    "manual",
+    "auto",
   );
   answerField.setAttribute(
     "virtual-keyboard-mode",
@@ -720,8 +647,6 @@ function renderThemeToggle() {
 }
 
 function bindEvents() {
-  const keyboardBtn = document.querySelector("#keyboardBtn");
-
   themeToggle.addEventListener("click", () => {
     state.themeId = state.themeId === "dark" ? "light" : "dark";
     applyTheme();
@@ -770,12 +695,6 @@ function bindEvents() {
     protectFieldsFromAutoFocus(300);
     setFieldValue(answerField, "");
     answerField.focus();
-  });
-
-  keyboardBtn.addEventListener("click", () => {
-    suppressOutsideBlurUntil = performance.now() + 500;
-    logKeyboardDebug("keyboard:manual-toggle-click");
-    toggleManualAnswerKeyboard();
   });
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
@@ -874,7 +793,6 @@ function bindEvents() {
 
     window.mathVirtualKeyboard.addEventListener("virtual-keyboard-toggle", (event) => {
       logKeyboardDebug("vk:toggle", { visible: event?.detail?.visible ?? null });
-      updateManualKeyboardButtonLabel();
     });
 
     window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
@@ -887,10 +805,6 @@ function bindEvents() {
   // In installed PWAs, taps on non-focusable elements do not always blur MathLive.
   // Explicitly blur on true outside taps so keyboard closes consistently.
   const blurOnOutsideInteraction = (event) => {
-    if (performance.now() < suppressOutsideBlurUntil) {
-      return;
-    }
-
     if (!answerField.hasFocus || !answerField.hasFocus()) {
       return;
     }
@@ -912,8 +826,6 @@ function bindEvents() {
   document.addEventListener("mouseup", blurOnOutsideInteraction, true);
   document.addEventListener("touchend", blurOnOutsideInteraction, true);
   document.addEventListener("click", blurOnOutsideInteraction, true);
-
-  updateManualKeyboardButtonLabel();
 }
 
 function shouldUseVirtualKeyboard() {
@@ -936,10 +848,6 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
     return true;
   }
 
-  if (target instanceof Element && target.closest?.("#keyboardBtn")) {
-    return true;
-  }
-
   if (target instanceof Element) {
     const targetClassName = typeof target.className === "string" ? target.className : "";
     if (targetClassName.includes("MLK__") || targetClassName.includes("ML__")) {
@@ -955,10 +863,6 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
   for (const node of path) {
     if (!(node instanceof Element)) {
       continue;
-    }
-
-    if (node.closest?.("#keyboardBtn")) {
-      return true;
     }
 
     const root = node.getRootNode?.();
