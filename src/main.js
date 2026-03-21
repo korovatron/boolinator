@@ -333,6 +333,11 @@ function bindEvents() {
   answerField.addEventListener("keydown", handleAnswerFieldKeydown, true);
   answerField.addEventListener("blur", () => {
     retranslateAnswerField();
+
+    // When focus leaves the field, close the virtual keyboard as well.
+    if (window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.hide();
+    }
   });
 
   // iOS fix: Close keyboard when tapping outside both field and keyboard.

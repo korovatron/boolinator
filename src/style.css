@@ -538,14 +538,7 @@ body[data-theme="light"] #answerField::part(content) {
 
 #answerField::part(virtual-keyboard-toggle),
 #answerField::part(keyboard-toggle) {
-  color: var(--text-soft);
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 0;
-  margin-bottom: 0;
-  transform: translateY(2px);
+  display: none !important;
 }
 
 #answerField::part(virtual-keyboard-toggle):hover,
