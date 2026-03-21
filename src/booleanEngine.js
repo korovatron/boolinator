@@ -1273,8 +1273,8 @@ function tokenize(rawInput) {
   source = normalizePrimeSuperscripts(source);
   source = convertLatexOverbar(source);
   source = source.replace(/\\mathbin\s*\{([^{}]*)\}/g, "$1");
-  source = source.replace(/\\left/g, "");
-  source = source.replace(/\\right/g, "");
+  source = source.replace(/\\left\.?/g, "");
+  source = source.replace(/\\right\.?/g, "");
   source = source.replace(/\\,|\\;|\\:|\\!/g, "");
   source = source.replace(/\\quad|\\qquad|~/g, "");
   source = source.replace(/\\cdot|\\times/g, ".");
@@ -1407,8 +1407,8 @@ function normalizeMathLiveLatex(input) {
 
   working = working.replace(/\\overline\s*\{/g, "\\overline{");
   working = working.replace(/\\bar\s*\{/g, "\\bar{");
-  working = working.replace(/\\left|\\mleft/g, "");
-  working = working.replace(/\\right|\\mright/g, "");
+  working = working.replace(/\\left\.?|\\mleft\.?/g, "");
+  working = working.replace(/\\right\.?|\\mright\.?/g, "");
   working = working.replace(/\\operatorname\s*\{\s*lnot\s*\}/gi, "\\lnot");
   working = working.replace(/\\operatorname\s*\{\s*neg\s*\}/gi, "\\neg");
   working = working.replace(/\\operatorname\s*\{\s*not\s*\}/gi, "NOT");
