@@ -434,6 +434,7 @@ body[data-theme="light"] #challengeField::part(content) {
   margin-top: 10px;
   display: grid;
   gap: 8px;
+  overflow-anchor: none;
 }
 
 .submission-row {

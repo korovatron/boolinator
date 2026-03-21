@@ -121,6 +121,28 @@ const state = {
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
 
+function resetAppScrollToTop() {
+  if (!root) {
+    return;
+  }
+
+  const applyReset = () => {
+    root.scrollTop = 0;
+    root.scrollLeft = 0;
+    try {
+      root.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    } catch {
+      // Older browsers may not support options object.
+      root.scrollTo(0, 0);
+    }
+    window.scrollTo(0, 0);
+  };
+
+  applyReset();
+  requestAnimationFrame(applyReset);
+  setTimeout(applyReset, 40);
+}
+
 
 function hasMathLiveAnswerFocus() {
   return Boolean(answerField?.hasFocus && answerField.hasFocus());
@@ -779,6 +801,7 @@ function startNewChallenge() {
   renderSubmissionHistory();
   renderGateMetrics();
   renderTip();
+  resetAppScrollToTop();
 
     setFeedback(
       "New challenge loaded. Enter an equivalent expression with fewer gates.",
