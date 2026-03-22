@@ -104,16 +104,16 @@ root.innerHTML = `
 
     <section class="panel answer">
       <div class="tile-head answer-head">
-        <h2>Enter your simplified expression</h2>
+        <h2>Enter your next equivalent step</h2>
       </div>
       <p id="notationHelp" class="notation-help"></p>
       <math-field id="answerField" default-mode="math"></math-field>
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
-        <button id="clearBtn" class="ghost-btn">Clear</button>
-        <button id="hintBtn" class="ghost-btn">Hint</button>
-        <button id="inputHelpBtn" class="ghost-btn" type="button">Input Help</button>
-        <button id="checkBtn" class="primary-btn">Submit</button>
+        <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
+        <button id="hintBtn" class="ghost-btn" title="Show a hint for the next simplification move.">Hint</button>
+        <button id="inputHelpBtn" class="ghost-btn" type="button" title="Open typing help for AQA and OCR symbols and key shortcuts.">Input Help</button>
+        <button id="checkBtn" class="primary-btn" title="Check whether your current step is equivalent and uses fewer gates.">Submit</button>
       </div>
       <p id="feedbackSummary">Enter an expression and press Submit.</p>
       <div id="feedbackDetails" class="feedback-details"></div>
@@ -512,6 +512,19 @@ function renderThemeToggle() {
   themeToggle.classList.toggle("theme-light-active", state.themeId === "light");
 }
 
+function latestResetExpression() {
+  const lastEquivalent = state.equivalentSubmissions[state.equivalentSubmissions.length - 1];
+  if (lastEquivalent) {
+    return formatAstForAnswerField(lastEquivalent);
+  }
+
+  if (state.challenge?.initialAst) {
+    return formatAstForAnswerField(state.challenge.initialAst);
+  }
+
+  return "";
+}
+
 function bindEvents() {
   themeToggle.addEventListener("click", () => {
     state.themeId = state.themeId === "dark" ? "light" : "dark";
@@ -555,8 +568,16 @@ function bindEvents() {
     startNewChallenge();
   });
 
-  document.querySelector("#clearBtn").addEventListener("click", () => {
-    setFieldValue(answerField, "");
+  document.querySelector("#resetBtn").addEventListener("click", () => {
+    const resetExpression = latestResetExpression();
+    setFieldValue(answerField, resetExpression);
+
+    if (state.equivalentSubmissions.length > 0) {
+      setFeedback("Input reset to your latest equivalent step.", "info", []);
+    } else {
+      setFeedback("Input reset to the challenge expression.", "info", []);
+    }
+
     try {
       answerField.focus({ preventScroll: true });
     } catch {
