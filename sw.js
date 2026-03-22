@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v93";
+const CACHE_NAME = "boolinator-v94";
 
 const LOCAL_ASSETS = [
   "./",
@@ -11,7 +11,6 @@ const LOCAL_ASSETS = [
   "./images/theBoolinator180.png",
   "./images/theBoolinator192.png",
   "./images/screenshot.png",
-  "./images/theBoolinatorLight.png",
 ];
 
 const CDN_ASSETS = [

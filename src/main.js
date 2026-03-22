@@ -67,12 +67,6 @@ root.innerHTML = `
         alt="Boolinator"
         decoding="async"
       />
-      <img
-        class="hero-logo hero-logo-light"
-        src="./images/theBoolinatorLight.png"
-        alt="Boolinator"
-        decoding="async"
-      />
       <div class="hero-copy">
         <h1>Boolinator</h1>
       </div>
