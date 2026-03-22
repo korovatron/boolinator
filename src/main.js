@@ -2129,7 +2129,8 @@ function checkAnswer() {
     setFieldValue(answerField, formatAstForAnswerField(ast));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not parse expression.";
-    setFeedback("Could not parse that expression.", "error", [
+    setFeedback("There is an error in your expression.", "error", [
+      ["Hint", "Check your brackets and operators, then try again."],
       ["Details", message],
     ]);
     return;
