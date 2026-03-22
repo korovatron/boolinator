@@ -1102,10 +1102,16 @@ function renderReadonlyMathFieldLatex(field, latex) {
 }
 
 function retranslateAnswerField() {
-  const latex = getFieldValue(answerField).trim();
-  if (!latex) return;
+  const raw = getFieldValue(answerField).trim();
+  if (!raw) return;
+
+  const source = sanitizeLatex(raw);
+  if (source !== raw) {
+    setFieldValue(answerField, source);
+  }
+
   try {
-    const ast = parseBooleanExpression(latex);
+    const ast = parseBooleanExpression(source);
     setFieldValue(answerField, formatAstForAnswerField(ast));
   } catch {
     // If the current content can't be parsed, leave it unchanged

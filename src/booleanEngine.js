@@ -106,11 +106,13 @@ const STYLE_PROFILES = [
 ];
 
 const DEMORGAN_TARGET_RATE = 0.55;
+const A_PLUS_NOTAB_TARGET_RATE = 0.25;
 
 export function randomChallenge() {
   let bestCandidate = null;
   let bestScore = Number.POSITIVE_INFINITY;
   const requireDeMorgan = Math.random() < DEMORGAN_TARGET_RATE;
+  const requireAPlusNotAB = Math.random() < A_PLUS_NOTAB_TARGET_RATE;
 
   for (const tier of CHALLENGE_TIERS) {
     for (let attempt = 0; attempt < tier.attempts; attempt += 1) {
@@ -160,6 +162,10 @@ export function randomChallenge() {
       };
 
       if (requireDeMorgan && !hasGroupedNotExpression(candidate.initialAst)) {
+        continue;
+      }
+
+      if (requireAPlusNotAB && !hasAPlusNotABPattern(candidate.initialAst)) {
         continue;
       }
 
@@ -233,6 +239,72 @@ function hasGroupedNotExpression(ast) {
   }
 
   return false;
+}
+
+function hasAPlusNotABPattern(ast) {
+  if (!ast) {
+    return false;
+  }
+
+  if (ast.type === "or") {
+    const operands = flatten(ast, "or");
+
+    for (const operand of operands) {
+      if (operand.type !== "var") {
+        continue;
+      }
+
+      const variableName = operand.name;
+      const hasCoverTerm = operands.some((otherOperand) => {
+        if (otherOperand === operand) {
+          return false;
+        }
+        return isAndTermContainingNegatedVariable(otherOperand, variableName);
+      });
+
+      if (hasCoverTerm) {
+        return true;
+      }
+    }
+  }
+
+  if (ast.type === "not") {
+    return hasAPlusNotABPattern(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return hasAPlusNotABPattern(ast.left) || hasAPlusNotABPattern(ast.right);
+  }
+
+  return false;
+}
+
+function isAndTermContainingNegatedVariable(node, variableName) {
+  if (!node || node.type !== "and") {
+    return false;
+  }
+
+  const factors = flatten(node, "and");
+  const hasNegatedVariable = factors.some((factor) => (
+    factor.type === "not"
+    && factor.expr?.type === "var"
+    && factor.expr.name === variableName
+  ));
+
+  if (!hasNegatedVariable) {
+    return false;
+  }
+
+  return factors.some((factor) => !isNegatedVariableFactor(factor, variableName));
+}
+
+function isNegatedVariableFactor(node, variableName) {
+  return Boolean(
+    node
+    && node.type === "not"
+    && node.expr?.type === "var"
+    && node.expr.name === variableName,
+  );
 }
 
 function buildStyledInitialAst(minimalAst, variables, tier, styleProfile) {
