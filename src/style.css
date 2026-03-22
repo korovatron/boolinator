@@ -626,6 +626,11 @@ body[data-theme="light"] #hintField::part(content) {
   font: 600 0.9rem/1 "IBM Plex Mono", monospace;
 }
 
+.touch-key[data-touch-key="BACKSPACE"] {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 .touch-key:active {
   transform: translateY(1px);
   background:
