@@ -927,6 +927,13 @@ function renderSubmissionHistory() {
     expressionField.setAttribute("read-only", "");
     expressionField.setAttribute("math-virtual-keyboard-policy", "manual");
     row.appendChild(expressionField);
+
+    const gateCount = gateCountAst(ast);
+    const gateBadge = document.createElement("span");
+    gateBadge.className = "submission-gate-count";
+    gateBadge.innerHTML = `<span class="gate-label-full">${gateCount} gates</span><span class="gate-label-short">${gateCount}g</span>`;
+    row.appendChild(gateBadge);
+
     submissionHistory.appendChild(row);
 
     const latex = formatAstForAnswerField(ast);

@@ -32,7 +32,7 @@ const CHALLENGE_TIERS = [
   {
     initialMin: 10,
     initialMax: 15,
-    minimalMin: 1,
+    minimalMin: 0,
     minimalMax: 5,
     minReduction: 5,
     attempts: 450,
@@ -40,7 +40,7 @@ const CHALLENGE_TIERS = [
   {
     initialMin: 9,
     initialMax: 16,
-    minimalMin: 1,
+    minimalMin: 0,
     minimalMax: 6,
     minReduction: 4,
     attempts: 400,
@@ -48,7 +48,7 @@ const CHALLENGE_TIERS = [
   {
     initialMin: 8,
     initialMax: 17,
-    minimalMin: 1,
+    minimalMin: 0,
     minimalMax: 7,
     minReduction: 3,
     attempts: 350,
@@ -129,7 +129,7 @@ export function randomChallenge() {
       }
 
       const minimal = minimalByGates(variables, outputs);
-      if (!minimal || minimal.gateCount === 0) {
+      if (!minimal) {
         continue;
       }
 
