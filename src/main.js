@@ -294,6 +294,7 @@ function forceAnswerFieldBlurReset() {
 }
 
 initializeTheme();
+initializeNotation();
 setupMathFields();
 setupIOSRubberBandSuppression();
 renderThemeToggle();
@@ -312,6 +313,17 @@ function initializeTheme() {
   }
 
   applyTheme();
+}
+
+function initializeNotation() {
+  try {
+    const storedNotation = window.localStorage.getItem("boolinator-notation");
+    if (storedNotation === "aqa" || storedNotation === "logic") {
+      state.notationId = storedNotation;
+    }
+  } catch {
+    // LocalStorage can be unavailable; default to AQA.
+  }
 }
 
 function applyTheme() {
@@ -343,6 +355,7 @@ function setupMathFields() {
   applyAnswerKeybindings();
   renderTouchKeypad();
   bindTouchKeypadEvents();
+  applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
 }
 
 function getTouchKeypadLayout() {
@@ -587,6 +600,13 @@ function bindEvents() {
     if (answerField.hasFocus && answerField.hasFocus()) {
       answerField.blur();
     }
+
+    try {
+      window.localStorage.setItem("boolinator-notation", state.notationId);
+    } catch {
+      // Ignore if storage is blocked.
+    }
+
     applyNotationMode();
   });
 
@@ -693,6 +713,10 @@ function bindEvents() {
     answerField.classList.add("answer-field-focused");
   });
 
+  answerField.addEventListener("input", () => {
+    applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
+  });
+
   const ensureAnswerTapFocus = () => {
     try {
       answerField.focus({ preventScroll: true });
@@ -728,6 +752,10 @@ function bindEvents() {
   document.addEventListener("mouseup", blurOnOutsideInteraction, true);
   document.addEventListener("touchend", blurOnOutsideInteraction, true);
   document.addEventListener("click", blurOnOutsideInteraction, true);
+
+  window.addEventListener("resize", () => {
+    refreshAdaptiveMathFieldSizes();
+  });
 }
 
 function isEventInsideAnswerFieldOrKeyboard(event) {
@@ -1518,6 +1546,7 @@ function renderNotationMeta() {
 function renderChallengeExpression() {
   const challengeLatex = formatAstForAnswerField(state.challenge.initialAst);
   setFieldValue(challengeField, challengeLatex);
+  applyAdaptiveMathFieldScale(challengeField, challengeLatex, "challenge");
 }
 
 function renderSubmissionHistory() {
@@ -1556,6 +1585,7 @@ function renderSubmissionHistory() {
 
     const latex = formatAstForAnswerField(ast);
     renderReadonlyMathFieldLatex(expressionField, latex);
+    applyAdaptiveMathFieldScale(expressionField, latex, "history");
     disableMathFieldContextMenu(expressionField);
     makeReadonlyMathFieldUnfocusable(expressionField);
   }
@@ -1608,6 +1638,11 @@ function renderReadonlyMathFieldLatex(field, latex) {
   // MathLive custom elements can upgrade asynchronously; set again after mount.
   requestAnimationFrame(() => {
     assignLatex();
+    applyAdaptiveMathFieldScale(
+      field,
+      latex,
+      field.classList.contains("submission-item") ? "history" : "generic",
+    );
   });
 }
 
@@ -2176,9 +2211,17 @@ function toneClass(tone) {
 function setFieldValue(field, value) {
   if (typeof field.setValue === "function") {
     field.setValue(value);
-    return;
+  } else {
+    field.value = value;
   }
-  field.value = value;
+
+  if (field === challengeField) {
+    applyAdaptiveMathFieldScale(field, value, "challenge");
+  }
+
+  if (field === answerField) {
+    applyAdaptiveMathFieldScale(field, value, "answer");
+  }
 }
 
 function getFieldValue(field) {
@@ -2211,6 +2254,113 @@ function fieldHasSelection(field) {
 
     return Number(range[0]) !== Number(range[1]);
   });
+}
+
+function refreshAdaptiveMathFieldSizes() {
+  const challengeValue = getFieldValue(challengeField);
+  applyAdaptiveMathFieldScale(challengeField, challengeValue, "challenge");
+
+  const answerValue = getFieldValue(answerField);
+  applyAdaptiveMathFieldScale(answerField, answerValue, "answer");
+
+  const submissionFields = submissionHistory?.querySelectorAll?.(".submission-item") ?? [];
+  for (const field of submissionFields) {
+    const value = getFieldValue(field);
+    applyAdaptiveMathFieldScale(field, value, "history");
+  }
+}
+
+function applyAdaptiveMathFieldScale(field, latex, usage) {
+  if (!field) {
+    return;
+  }
+
+  const isNarrow = window.matchMedia?.("(max-width: 760px)")?.matches ?? false;
+  if (!isNarrow) {
+    setMathFieldScale(field, 1);
+    return;
+  }
+
+  const minScale = usage === "answer" ? 0.62 : 0.56;
+
+  const fit = () => {
+    let scale = 1;
+    setMathFieldScale(field, scale);
+
+    const measureElement = getMathFieldMeasureElement(field);
+    const isOverflowing = () => {
+      const hostOverflow = (field.scrollWidth - field.clientWidth) > 1;
+      const contentOverflow = measureElement
+        ? (measureElement.scrollWidth - measureElement.clientWidth) > 1
+        : false;
+      return hostOverflow || contentOverflow;
+    };
+
+    let guard = 0;
+    while (isOverflowing() && scale > minScale && guard < 30) {
+      scale -= 0.02;
+      setMathFieldScale(field, scale);
+      guard += 1;
+    }
+
+    if (!isOverflowing()) {
+      return;
+    }
+
+    const compactLength = estimateExpressionLength(latex);
+    if (compactLength > 72) {
+      scale = Math.min(scale, 0.6);
+    } else if (compactLength > 62) {
+      scale = Math.min(scale, 0.66);
+    } else if (compactLength > 52) {
+      scale = Math.min(scale, 0.72);
+    } else if (compactLength > 44) {
+      scale = Math.min(scale, 0.8);
+    } else if (compactLength > 36) {
+      scale = Math.min(scale, 0.88);
+    }
+
+    setMathFieldScale(field, Math.max(scale, minScale));
+  };
+
+  fit();
+  requestAnimationFrame(fit);
+}
+
+function setMathFieldScale(field, scale) {
+  const clamped = Math.max(0.6, Math.min(1, Number(scale) || 1));
+  field.style.setProperty("--adaptive-scale", String(clamped));
+
+  const root = field.shadowRoot;
+  if (!root) {
+    return;
+  }
+
+  const content = root.querySelector("[part='content']") || root.querySelector(".ML__content");
+  if (content instanceof HTMLElement) {
+    content.style.fontSize = `${clamped}em`;
+  }
+}
+
+function estimateExpressionLength(latex) {
+  return String(latex ?? "")
+    .replace(/\\left|\\right|\\mathord|\\mathbin|\\,/g, "")
+    .replace(/\\overline|\\lnot|\\land|\\lor|\\cdot/g, "X")
+    .replace(/[{}\\\s]/g, "")
+    .length;
+}
+
+function getMathFieldMeasureElement(field) {
+  const root = field?.shadowRoot;
+  if (!root) {
+    return null;
+  }
+
+  return (
+    root.querySelector("[part='content']")
+    || root.querySelector(".ML__content")
+    || root.querySelector("[part='container']")
+  );
 }
 
 

@@ -435,9 +435,10 @@ body[data-theme="light"] math-field {
 }
 
 #challengeField {
+  --adaptive-scale: 1;
   min-height: 88px;
   padding: 12px;
-  font-size: 1.45rem;
+  font-size: calc(1.45rem * var(--adaptive-scale));
   text-align: center;
   background: color-mix(in srgb, var(--surface) 88%, black 12%);
   border-color: color-mix(in srgb, var(--panel-border) 76%, transparent);
@@ -500,9 +501,10 @@ body[data-theme="light"] #challengeField::part(content) {
 }
 
 .submission-item {
+  --adaptive-scale: 1;
   min-height: 30px;
   padding: 0;
-  font-size: 1.02rem;
+  font-size: calc(1.02rem * var(--adaptive-scale));
   color: var(--ink);
   border: 0;
   background: transparent;
@@ -569,10 +571,11 @@ body[data-theme="light"] #hintField::part(content) {
 }
 
 #answerField {
+  --adaptive-scale: 1;
   min-height: 74px;
   margin-bottom: 10px;
   padding: 8px;
-  font-size: 1.2rem;
+  font-size: calc(1.2rem * var(--adaptive-scale));
   --keyboard-zindex: 9999;
   --contains-highlight-background-color: transparent;
   --answer-border-unfocused: color-mix(in srgb, var(--panel-border) 82%, #ffffff 18%);
