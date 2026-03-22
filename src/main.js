@@ -11,10 +11,48 @@ import {
 } from "./booleanEngine.js";
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((error) => {
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./sw.js", {
+        updateViaCache: "none",
+      });
+
+      // Proactively check for updates on each app load.
+      await registration.update().catch(() => {});
+
+      const activateWaitingWorker = () => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+      };
+
+      activateWaitingWorker();
+
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) {
+          return;
+        }
+
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            activateWaitingWorker();
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        window.location.reload();
+      }, { once: true });
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+          registration.update().catch(() => {});
+        }
+      });
+    } catch (error) {
       console.error("Service worker registration failed", error);
-    });
+    }
   });
 }
 

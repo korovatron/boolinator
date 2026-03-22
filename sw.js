@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v83";
+const CACHE_NAME = "boolinator-v84";
 
 const LOCAL_ASSETS = [
   "./",
@@ -175,4 +175,10 @@ self.addEventListener("activate", (event) => {
   })());
 
   self.clients.claim();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
