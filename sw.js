@@ -10,7 +10,7 @@ const LOCAL_ASSETS = [
   "./images/theBoolinator.png",
   "./images/theBoolinator180.png",
   "./images/theBoolinator192.png",
-    "./images/screenshot.png",
+  "./images/screenshot.png",
   "./images/theBoolinatorLight.png",
 ];
 
