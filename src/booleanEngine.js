@@ -65,9 +65,12 @@ const STYLE_PROFILES = [
       "distributeOr",
       "distributeAnd",
       "absorptionOr",
+      "addZero",
+      "mulOne",
     ],
-    fineOps: ["doubleNegation", "addZero", "mulOne", "complementZero", "complementOne"],
-    minConstants: 1,
+    fineOps: ["doubleNegation", "complementZero", "complementOne"],
+    minConstants: 0,
+    maxConstants: 2,
     minLongNots: 2,
     minNotDepth: 2,
   },
@@ -80,9 +83,12 @@ const STYLE_PROFILES = [
       "distributeAnd",
       "absorptionOr",
       "absorptionAnd",
+      "addZero",
+      "mulOne",
     ],
-    fineOps: ["addZero", "mulOne", "complementZero", "complementOne", "doubleNegation"],
-    minConstants: 2,
+    fineOps: ["complementZero", "complementOne", "doubleNegation"],
+    minConstants: 0,
+    maxConstants: 2,
     minLongNots: 1,
     minNotDepth: 1,
   },
@@ -97,9 +103,12 @@ const STYLE_PROFILES = [
       "absorptionAnd",
       "complementZero",
       "complementOne",
+      "addZero",
+      "mulOne",
     ],
-    fineOps: ["addZero", "mulOne", "doubleNegation", "complementZero", "complementOne"],
-    minConstants: 1,
+    fineOps: ["doubleNegation", "complementZero", "complementOne"],
+    minConstants: 0,
+    maxConstants: 2,
     minLongNots: 1,
     minNotDepth: 2,
   },
@@ -390,6 +399,10 @@ function stylePenalty(stats, styleProfile) {
 
   if (stats.constantCount < styleProfile.minConstants) {
     penalty += (styleProfile.minConstants - stats.constantCount) * 6;
+  }
+
+  if (stats.constantCount > styleProfile.maxConstants) {
+    penalty += (stats.constantCount - styleProfile.maxConstants) * 12;
   }
 
   if (stats.longNotCount < styleProfile.minLongNots) {
