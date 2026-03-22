@@ -73,6 +73,8 @@ const STYLE_PROFILES = [
     maxConstants: 2,
     minLongNots: 2,
     minNotDepth: 2,
+    minIdentityPatterns: 1,
+    maxIdentityPatterns: 2,
   },
   {
     id: "aqa-constants",
@@ -91,6 +93,8 @@ const STYLE_PROFILES = [
     maxConstants: 2,
     minLongNots: 1,
     minNotDepth: 1,
+    minIdentityPatterns: 1,
+    maxIdentityPatterns: 2,
   },
   {
     id: "aqa-mixed",
@@ -111,6 +115,8 @@ const STYLE_PROFILES = [
     maxConstants: 2,
     minLongNots: 1,
     minNotDepth: 2,
+    minIdentityPatterns: 1,
+    maxIdentityPatterns: 2,
   },
 ];
 
@@ -413,6 +419,14 @@ function stylePenalty(stats, styleProfile) {
     penalty += (styleProfile.minNotDepth - stats.maxNotDepth) * 7;
   }
 
+  if (stats.identityPatternCount < styleProfile.minIdentityPatterns) {
+    penalty += (styleProfile.minIdentityPatterns - stats.identityPatternCount) * 5;
+  }
+
+  if (stats.identityPatternCount > styleProfile.maxIdentityPatterns) {
+    penalty += (stats.identityPatternCount - styleProfile.maxIdentityPatterns) * 16;
+  }
+
   return penalty;
 }
 
@@ -421,9 +435,10 @@ function astStyleStats(ast) {
     constantCount: 0,
     longNotCount: 0,
     maxNotDepth: 0,
+    identityPatternCount: 0,
   };
 
-  function walk(node, notDepth) {
+  function walk(node, notDepth, parentKind = null) {
     if (!node) {
       return;
     }
@@ -450,13 +465,56 @@ function astStyleStats(ast) {
     }
 
     if (node.type === "and" || node.type === "or") {
-      walk(node.left, notDepth);
-      walk(node.right, notDepth);
+      // Count identity-pattern groups once per flattened chain root.
+      if (parentKind !== node.type) {
+        stats.identityPatternCount += countIdentityPatternsInChain(node, node.type);
+      }
+
+      walk(node.left, notDepth, node.type);
+      walk(node.right, notDepth, node.type);
     }
   }
 
-  walk(ast, 0);
+  walk(ast, 0, null);
   return stats;
+}
+
+function countIdentityPatternsInChain(node, kind) {
+  const operands = flatten(node, kind);
+  const literalCounts = new Map();
+
+  for (const operand of operands) {
+    if (!isLiteralNode(operand)) {
+      continue;
+    }
+    const key = literalNodeKey(operand);
+    literalCounts.set(key, (literalCounts.get(key) ?? 0) + 1);
+  }
+
+  let patternCount = 0;
+
+  // Idempotence groups: A + A or A . A (count extra repeats).
+  for (const count of literalCounts.values()) {
+    if (count > 1) {
+      patternCount += count - 1;
+    }
+  }
+
+  // Complement pairs: A + A' or A . A'.
+  const baseVariables = new Set();
+  for (const key of literalCounts.keys()) {
+    baseVariables.add(key.startsWith("!") ? key.slice(1) : key);
+  }
+
+  for (const variable of baseVariables) {
+    const positiveCount = literalCounts.get(variable) ?? 0;
+    const negativeCount = literalCounts.get(`!${variable}`) ?? 0;
+    if (positiveCount > 0 && negativeCount > 0) {
+      patternCount += Math.min(positiveCount, negativeCount);
+    }
+  }
+
+  return patternCount;
 }
 
 function astNodeCount(ast) {
@@ -902,7 +960,7 @@ export function astToLatex(ast, notationId) {
     or: 1,
   };
 
-  function render(node, parentPrecedence = 0) {
+  function render(node, parentPrecedence = 0, isRoot = false) {
     if (node.type === "const") {
       return node.value ? "1" : "0";
     }
@@ -913,21 +971,22 @@ export function astToLatex(ast, notationId) {
 
     if (node.type === "not") {
       if (notationId === "aqa") {
-        const child =
-          node.expr.type === "var"
-            ? render(node.expr, precedence.not)
-            : render(node.expr, 0);
-        return `\\overline{${child}}`;
+        const shouldWrap = !isRoot && shouldWrapAqaOverbarExpression(node.expr);
+        const child = render(node.expr, 0, false);
+        const wrappedChild = shouldWrap
+          ? `\\left(${child}\\right)`
+          : child;
+        return `\\overline{${wrappedChild}}`;
       }
 
-      const child = render(node.expr, precedence.not);
+      const child = render(node.expr, precedence.not, false);
       const notSymbol = notationId === "code" ? "!" : "\\lnot\\,";
       return `${notSymbol}${child}`;
     }
 
     const kind = node.type;
     const children = flatten(node, kind);
-    const childPieces = children.map((child) => render(child, precedence[kind]));
+    const childPieces = children.map((child) => render(child, precedence[kind], false));
     const connector = pickConnector(kind, notationId, true);
     let piece = childPieces.join(connector);
 
@@ -937,7 +996,7 @@ export function astToLatex(ast, notationId) {
     return piece;
   }
 
-  return render(ast);
+  return render(ast, 0, true);
 }
 
 export function astToNotationText(ast, notationId) {
@@ -949,7 +1008,7 @@ export function astToNotationText(ast, notationId) {
     or: 1,
   };
 
-  function render(node, parentPrecedence = 0) {
+  function render(node, parentPrecedence = 0, isRoot = false) {
     if (node.type === "const") {
       return node.value ? "1" : "0";
     }
@@ -959,9 +1018,10 @@ export function astToNotationText(ast, notationId) {
     }
 
     if (node.type === "not") {
-      const child = render(node.expr, precedence.not);
+      const shouldWrap = !isRoot && shouldWrapAqaOverbarExpression(node.expr);
+      const child = render(node.expr, 0, false);
       if (notationId === "aqa") {
-        if (node.expr.type === "var") {
+        if (!shouldWrap) {
           return `${child}'`;
         }
         return `(${child})'`;
@@ -973,7 +1033,7 @@ export function astToNotationText(ast, notationId) {
 
     const kind = node.type;
     const children = flatten(node, kind);
-    const childPieces = children.map((child) => render(child, precedence[kind]));
+    const childPieces = children.map((child) => render(child, precedence[kind], false));
     const connector = pickConnector(kind, notationId, false);
 
     let piece = childPieces.join(connector);
@@ -983,7 +1043,15 @@ export function astToNotationText(ast, notationId) {
     return piece;
   }
 
-  return render(ast);
+  return render(ast, 0, true);
+}
+
+function shouldWrapAqaOverbarExpression(node) {
+  if (!node) {
+    return false;
+  }
+
+  return node.type === "or";
 }
 
 function astToMathJs(ast) {

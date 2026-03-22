@@ -1349,10 +1349,10 @@ function createWorksheetPage({ title, subtitle, notationId, items, itemKey }) {
 }
 
 function renderWorksheetExpression(ast, notationId) {
-  return buildWorksheetExpressionNode(ast, notationId);
+  return buildWorksheetExpressionNode(ast, notationId, 0, true);
 }
 
-function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0) {
+function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0, isRoot = false) {
   const precedence = {
     const: 4,
     var: 4,
@@ -1383,12 +1383,14 @@ function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0) {
       const overbarContent = document.createElement("span");
       overbarContent.className = "worksheet-overbar-content";
 
-      if (node.expr.type === "and" || node.expr.type === "or") {
+      const shouldWrap = !isRoot && shouldWrapWorksheetAqaOverbar(node.expr);
+
+      if (shouldWrap) {
         overbarContent.appendChild(wrapWorksheetExpression(
-          buildWorksheetExpressionNode(node.expr, notationId),
+          buildWorksheetExpressionNode(node.expr, notationId, 0, false),
         ));
       } else {
-        overbarContent.appendChild(buildWorksheetExpressionNode(node.expr, notationId, precedence.not));
+        overbarContent.appendChild(buildWorksheetExpressionNode(node.expr, notationId, 0, false));
       }
 
       overbar.appendChild(overbarContent);
@@ -1398,7 +1400,7 @@ function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0) {
 
     element = document.createElement("span");
     element.append("¬");
-    element.appendChild(buildWorksheetExpressionNode(node.expr, notationId, precedence.not));
+    element.appendChild(buildWorksheetExpressionNode(node.expr, notationId, precedence.not, false));
     return element;
   }
 
@@ -1411,7 +1413,7 @@ function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0) {
         ? (notationId === "aqa" ? "." : " ∧ ")
         : (notationId === "aqa" ? " + " : " ∨ "));
     }
-    element.appendChild(buildWorksheetExpressionNode(child, notationId, precedence[node.type]));
+    element.appendChild(buildWorksheetExpressionNode(child, notationId, precedence[node.type], false));
   });
 
   if (precedence[node.type] < parentPrecedence) {
@@ -1428,6 +1430,14 @@ function wrapWorksheetExpression(content) {
   wrapper.appendChild(content);
   wrapper.append(")");
   return wrapper;
+}
+
+function shouldWrapWorksheetAqaOverbar(node) {
+  if (!node) {
+    return false;
+  }
+
+  return node.type === "or";
 }
 
 function flattenWorksheetExpression(node, type) {
