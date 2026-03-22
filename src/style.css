@@ -44,33 +44,25 @@ body {
   min-height: 100%;
   font-family: "Chivo", "Segoe UI", sans-serif;
   color: var(--ink);
-  background-color: #09111f;
+  background-color: transparent;
   overflow-x: hidden;
+}
+
+html {
+  background-color: #09111f;
+  background-image:
+    radial-gradient(circle at 12% 10%, rgba(0, 216, 255, 0.14), transparent 40%),
+    radial-gradient(circle at 88% 90%, rgba(77, 255, 184, 0.12), transparent 42%);
 }
 
 body {
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: #09111f;
-  background-image:
-    radial-gradient(circle at 12% 10%, rgba(0, 216, 255, 0.14), transparent 40%),
-    radial-gradient(circle at 88% 90%, rgba(77, 255, 184, 0.12), transparent 42%);
+  background-color: transparent;
   user-select: none;
   -webkit-user-select: none;
   position: relative;
   isolation: isolate;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-color: #09111f;
-  background-image:
-    radial-gradient(circle at 12% 10%, rgba(0, 216, 255, 0.14), transparent 40%),
-    radial-gradient(circle at 88% 90%, rgba(77, 255, 184, 0.12), transparent 42%);
 }
 
 #app {
@@ -100,13 +92,10 @@ body[data-theme="light"] {
   --surface-elevated: #ffffff;
   --surface-soft: #e2f2ff;
   --shadow: 0 12px 22px rgba(18, 59, 92, 0.16);
-  background-color: #e8f4ff;
-  background-image:
-    radial-gradient(circle at 15% 12%, rgba(26, 168, 255, 0.18), transparent 38%),
-    radial-gradient(circle at 86% 82%, rgba(77, 255, 184, 0.14), transparent 38%);
 }
 
-body[data-theme="light"]::before {
+html[data-theme="light"],
+body[data-theme="light"] html {
   background-color: #e8f4ff;
   background-image:
     radial-gradient(circle at 15% 12%, rgba(26, 168, 255, 0.18), transparent 38%),
