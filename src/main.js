@@ -121,6 +121,43 @@ const state = {
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
 
+function isIOSDevice() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const isIOSUA = /iPad|iPhone|iPod/.test(ua);
+  const isIPadOSDesktopUA = platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return isIOSUA || isIPadOSDesktopUA;
+}
+
+function setupIOSRubberBandSuppression() {
+  if (!isIOSDevice()) {
+    return;
+  }
+
+  const pageCanScroll = () => {
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    return (scrollHeight - viewportHeight) > 1;
+  };
+
+  window.addEventListener("touchmove", (event) => {
+    // Keep gestures like pinch untouched.
+    if (event.touches && event.touches.length > 1) {
+      return;
+    }
+
+    if (pageCanScroll()) {
+      return;
+    }
+
+    event.preventDefault();
+  }, { passive: false, capture: true });
+}
+
 function resetAppScrollToTop() {
   const applyReset = () => {
     if (root) {
@@ -169,6 +206,7 @@ function forceAnswerFieldBlurReset() {
 
 initializeTheme();
 setupMathFields();
+setupIOSRubberBandSuppression();
 renderThemeToggle();
 renderNotationToggle();
 bindEvents();
@@ -822,7 +860,7 @@ function renderNotationMeta() {
 }
 
 function renderChallengeExpression() {
-  const challengeLatex = astToLatex(state.challenge.initialAst, state.notationId);
+  const challengeLatex = formatAstForAnswerField(state.challenge.initialAst);
   setFieldValue(challengeField, challengeLatex);
 }
 
@@ -853,7 +891,7 @@ function renderSubmissionHistory() {
     row.appendChild(expressionField);
     submissionHistory.appendChild(row);
 
-    const latex = astToLatex(ast, state.notationId);
+    const latex = formatAstForAnswerField(ast);
     renderReadonlyMathFieldLatex(expressionField, latex);
     disableMathFieldContextMenu(expressionField);
     makeReadonlyMathFieldUnfocusable(expressionField);

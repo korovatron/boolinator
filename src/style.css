@@ -46,6 +46,7 @@ body {
   color: var(--ink);
   background-color: transparent;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
 }
 
 html {
