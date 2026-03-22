@@ -261,6 +261,10 @@ h2 {
   font-size: 1.1rem;
 }
 
+.challenge-title-short {
+  display: none;
+}
+
 .tile-head {
   display: flex;
   align-items: center;
@@ -271,6 +275,13 @@ h2 {
 
 .tile-head h2 {
   margin: 0;
+}
+
+.tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .notation-inline {
@@ -382,6 +393,16 @@ label {
 }
 
 select {
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 84%, transparent);
+  padding: 9px 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.worksheet-title-input {
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--panel-border) 84%, transparent);
   padding: 9px 10px;
@@ -705,6 +726,7 @@ math-field::part(keyboard) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .metrics span {
@@ -872,6 +894,194 @@ body:not([data-theme="light"]) .ghost-btn {
   margin: 14px 0 6px;
 }
 
+.worksheet-dialog {
+  width: min(640px, 100%);
+}
+
+.worksheet-dialog .control-row + .control-row {
+  margin-top: 12px;
+}
+
+.worksheet-modal-copy p {
+  margin: 0 0 18px;
+}
+
+.worksheet-feature-list {
+  margin: 0 0 16px;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.worksheet-actions {
+  margin-top: 16px;
+}
+
+.worksheet-status {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
+}
+
+.worksheet-status:empty {
+  display: none;
+}
+
+.worksheet-dialog .worksheet-status:not(:empty) {
+  margin-top: 14px;
+}
+
+.worksheet-render-root {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 794px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.worksheet-render-root.is-capturing {
+  left: -10000px;
+  z-index: -1;
+}
+
+.worksheet-doc {
+  display: grid;
+  gap: 24px;
+}
+
+.worksheet-page {
+  --worksheet-font-size: 17px;
+  width: 794px;
+  height: 1123px;
+  padding: 44px;
+  background: #ffffff;
+  color: #000000;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+}
+
+.worksheet-frame {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  padding: 28px 30px 24px;
+  background: #ffffff;
+}
+
+.worksheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 14px;
+}
+
+.worksheet-heading h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  color: #000000;
+}
+
+.worksheet-heading p {
+  margin: 8px 0 0;
+  font-size: 1rem;
+  color: #000000;
+}
+
+.worksheet-meta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  font: 700 0.88rem/1.25 "IBM Plex Mono", monospace;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.worksheet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 18px;
+  align-content: start;
+  font-size: var(--worksheet-font-size);
+}
+
+.worksheet-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: flex-start;
+  break-inside: avoid;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #000000;
+  background: #ffffff;
+}
+
+.worksheet-item-number {
+  font: 700 0.96em/1.3 "IBM Plex Mono", monospace;
+  color: #000000;
+}
+
+.worksheet-item-content {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.35;
+  color: #000000;
+  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.worksheet-expression {
+  display: inline-block;
+}
+
+.worksheet-item-gates {
+  justify-self: end;
+  align-self: start;
+  white-space: nowrap;
+  font: 700 0.82em/1.25 "IBM Plex Mono", monospace;
+  color: #000000;
+}
+
+.worksheet-group,
+.worksheet-overbar {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+.worksheet-overbar {
+  line-height: 1.15;
+}
+
+.worksheet-overbar-content {
+  display: inline-block;
+  border-top: 1.5px solid currentColor;
+  padding: 0.16em 0.06em 0;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+
+.worksheet-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #000000;
+  font: 700 0.84rem/1.2 "IBM Plex Mono", monospace;
+  color: #000000;
+  text-align: center;
+}
+
+.worksheet-footer span {
+  display: block;
+}
+
 .input-help-table {
   width: 100%;
   border-collapse: collapse;
@@ -1023,6 +1233,18 @@ body[data-theme="light"] .hint-expression {
   display: none;
 }
 
+@media (max-width: 760px) {
+  .tile-actions {
+    width: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .tile-actions .ghost-btn {
+    flex: 0 0 auto;
+  }
+}
+
 @media (pointer: fine) {
   .touch-keypad {
     display: none !important;
@@ -1036,6 +1258,25 @@ body[data-theme="light"] .hint-expression {
 }
 
 @media (max-width: 760px) {
+  .challenge .tile-head h2 {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .challenge-title-full {
+    display: none;
+  }
+
+  .challenge-title-short {
+    display: inline;
+  }
+
+  #worksheetBtn {
+    display: none;
+  }
+
   .touch-key {
     min-height: 38px;
     font-size: 0.85rem;

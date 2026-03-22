@@ -10,6 +10,11 @@ import {
   randomChallenge,
 } from "./booleanEngine.js";
 
+const WORKSHEET_QUESTION_COUNT = 10;
+const DEFAULT_WORKSHEET_TITLE = "Boolinator Worksheet";
+const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
+const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
@@ -86,8 +91,11 @@ root.innerHTML = `
 
     <section class="panel challenge">
       <div class="tile-head">
-        <h2>Simplify the following Boolean expression</h2>
-        <button id="newChallengeBtn" class="ghost-btn">New Question</button>
+        <h2><span class="challenge-title-full">Simplify the following Boolean expression</span><span class="challenge-title-short">Simplify</span></h2>
+        <div class="tile-actions">
+          <button id="worksheetBtn" class="ghost-btn" type="button" title="Generate a worksheet with 10 random questions and answers.">Generate Worksheet</button>
+          <button id="newChallengeBtn" class="ghost-btn">New Question</button>
+        </div>
       </div>
       <math-field id="challengeField" read-only></math-field>
       <div class="metrics">
@@ -130,6 +138,33 @@ root.innerHTML = `
       <div id="inputHelpContent" class="input-help-content"></div>
     </div>
   </div>
+
+  <div id="worksheetModal" class="input-help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="worksheetTitle">
+    <div class="input-help-dialog worksheet-dialog" role="document">
+      <button id="closeWorksheetBtn" class="input-help-close" type="button" aria-label="Close worksheet generator">X</button>
+      <h3 id="worksheetTitle">Generate PDF Worksheet</h3>
+      <div class="worksheet-modal-copy">
+        <p>Generate a worksheet of 10 random questions with answers.</p>
+      </div>
+      <div class="control-row">
+        <label for="worksheetTitleInput">Worksheet title</label>
+        <input id="worksheetTitleInput" class="worksheet-title-input" type="text" value="Boolinator Worksheet" maxlength="120" />
+      </div>
+      <div class="control-row">
+        <label for="worksheetNotation">Worksheet notation</label>
+        <select id="worksheetNotation">
+          <option value="logic">OCR</option>
+          <option value="aqa">AQA</option>
+        </select>
+      </div>
+      <p id="worksheetStatus" class="worksheet-status" aria-live="polite"></p>
+      <div class="actions worksheet-actions">
+        <button id="worksheetGenerateBtn" class="ghost-btn" type="button">Generate Worksheet</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="worksheetRenderRoot" class="worksheet-render-root" aria-hidden="true"></div>
 `;
 
 const themeToggle = document.querySelector("#themeToggle");
@@ -151,6 +186,14 @@ const inputHelpBtn = document.querySelector("#inputHelpBtn");
 const inputHelpModal = document.querySelector("#inputHelpModal");
 const inputHelpContent = document.querySelector("#inputHelpContent");
 const closeInputHelpBtn = document.querySelector("#closeInputHelpBtn");
+const worksheetBtn = document.querySelector("#worksheetBtn");
+const worksheetModal = document.querySelector("#worksheetModal");
+const worksheetTitleInput = document.querySelector("#worksheetTitleInput");
+const worksheetNotation = document.querySelector("#worksheetNotation");
+const worksheetStatus = document.querySelector("#worksheetStatus");
+const worksheetGenerateBtn = document.querySelector("#worksheetGenerateBtn");
+const closeWorksheetBtn = document.querySelector("#closeWorksheetBtn");
+const worksheetRenderRoot = document.querySelector("#worksheetRenderRoot");
 let isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -161,6 +204,7 @@ const state = {
   bestEquivalent: null,
   equivalentSubmissions: [],
   pendingTemplateExit: false,
+  worksheetGenerating: false,
 };
 
 let _originalKeybindings = null;
@@ -604,8 +648,35 @@ function bindEvents() {
     }
   });
 
+  worksheetBtn?.addEventListener("click", () => {
+    openWorksheetModal();
+  });
+
+  worksheetGenerateBtn?.addEventListener("click", () => {
+    void generateWorksheetPdf();
+  });
+
+  closeWorksheetBtn?.addEventListener("click", () => {
+    closeWorksheetModal();
+  });
+
+  worksheetModal?.addEventListener("click", (event) => {
+    if (event.target === worksheetModal) {
+      closeWorksheetModal();
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && inputHelpModal && !inputHelpModal.classList.contains("hidden")) {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (worksheetModal && !worksheetModal.classList.contains("hidden")) {
+      closeWorksheetModal();
+      return;
+    }
+
+    if (inputHelpModal && !inputHelpModal.classList.contains("hidden")) {
       closeInputHelpModal();
     }
   });
@@ -972,9 +1043,10 @@ function openInputHelpModal() {
     return;
   }
 
+  closeWorksheetModal({ preserveStatus: true });
   renderInputHelpModalContent();
   inputHelpModal.classList.remove("hidden");
-  document.body.classList.add("modal-open");
+  syncModalBodyState();
 }
 
 function closeInputHelpModal() {
@@ -983,7 +1055,430 @@ function closeInputHelpModal() {
   }
 
   inputHelpModal.classList.add("hidden");
-  document.body.classList.remove("modal-open");
+  syncModalBodyState();
+}
+
+function openWorksheetModal() {
+  if (!worksheetModal) {
+    return;
+  }
+
+  closeInputHelpModal();
+  if (worksheetTitleInput) {
+    worksheetTitleInput.value = normalizeWorksheetTitle(worksheetTitleInput.value);
+  }
+  if (worksheetNotation) {
+    worksheetNotation.value = state.notationId;
+  }
+  setWorksheetStatus("", "neutral");
+  renderWorksheetModalState();
+  worksheetModal.classList.remove("hidden");
+  syncModalBodyState();
+}
+
+function closeWorksheetModal(options = {}) {
+  if (!worksheetModal || state.worksheetGenerating) {
+    return;
+  }
+
+  worksheetModal.classList.add("hidden");
+  if (!options.preserveStatus) {
+    setWorksheetStatus("", "neutral");
+  }
+  syncModalBodyState();
+}
+
+function syncModalBodyState() {
+  const hasOpenModal = [inputHelpModal, worksheetModal].some(
+    (modal) => modal && !modal.classList.contains("hidden"),
+  );
+  document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
+function renderWorksheetModalState() {
+  if (!worksheetGenerateBtn || !worksheetNotation || !worksheetTitleInput) {
+    return;
+  }
+
+  worksheetGenerateBtn.disabled = state.worksheetGenerating;
+  worksheetNotation.disabled = state.worksheetGenerating;
+  worksheetTitleInput.disabled = state.worksheetGenerating;
+  worksheetGenerateBtn.textContent = state.worksheetGenerating
+    ? "Generating PDF..."
+    : "Generate Worksheet";
+}
+
+function setWorksheetStatus(message, tone) {
+  if (!worksheetStatus) {
+    return;
+  }
+
+  worksheetStatus.textContent = message;
+  worksheetStatus.className = `worksheet-status ${toneClass(tone)}`;
+}
+
+async function generateWorksheetPdf() {
+  if (state.worksheetGenerating) {
+    return;
+  }
+
+  const notationId = worksheetNotation?.value === "logic" ? "logic" : "aqa";
+  const worksheetTitle = normalizeWorksheetTitle(worksheetTitleInput?.value);
+  if (worksheetTitleInput) {
+    worksheetTitleInput.value = worksheetTitle;
+  }
+  state.worksheetGenerating = true;
+  renderWorksheetModalState();
+  setWorksheetStatus("Generating fresh questions...", "info");
+
+  try {
+    const worksheetItems = buildWorksheetItems(WORKSHEET_QUESTION_COUNT, notationId);
+    setWorksheetStatus("Rendering the PDF pages...", "info");
+    const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
+    const filename = buildWorksheetFilename(notationId, worksheetTitle);
+    pdf.save(filename);
+    setWorksheetStatus(`Downloaded ${filename}`, "success");
+  } catch (error) {
+    console.error("Worksheet PDF generation failed", error);
+    const message = error instanceof Error
+      ? error.message
+      : "Could not generate the worksheet PDF.";
+    setWorksheetStatus(message, "error");
+  } finally {
+    clearWorksheetRenderRoot();
+    state.worksheetGenerating = false;
+    renderWorksheetModalState();
+  }
+}
+
+function buildWorksheetItems(count, notationId) {
+  const items = [];
+  const seenQuestions = new Set();
+  const maxAttempts = count * 30;
+  let attempts = 0;
+
+  while (items.length < count && attempts < maxAttempts) {
+    attempts += 1;
+    const challenge = randomChallenge();
+    const questionText = astToNotationText(challenge.initialAst, notationId);
+    if (seenQuestions.has(questionText)) {
+      continue;
+    }
+
+    seenQuestions.add(questionText);
+    items.push({
+      number: items.length + 1,
+      questionAst: challenge.initialAst,
+      answerAst: challenge.minimalAst,
+      targetGateCount: challenge.minimalGateCount,
+    });
+  }
+
+  if (items.length < count) {
+    throw new Error("Could not generate enough distinct worksheet questions. Please try again.");
+  }
+
+  return items;
+}
+
+async function renderWorksheetPdfDocument(items, notationId, worksheetTitle) {
+  const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
+    import(JSPDF_MODULE_URL),
+    import(HTML2CANVAS_MODULE_URL),
+  ]);
+
+  const pages = renderWorksheetPages(items, notationId, worksheetTitle);
+  worksheetRenderRoot?.classList.add("is-capturing");
+
+  try {
+    await waitForWorksheetRender();
+    fitWorksheetPages(pages);
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: "a4",
+      compress: true,
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    for (let index = 0; index < pages.length; index += 1) {
+      if (index > 0) {
+        pdf.addPage("a4", "portrait");
+      }
+
+      const canvas = await html2canvas(pages[index], {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      const imageData = canvas.toDataURL("image/jpeg", 0.92);
+      pdf.addImage(imageData, "JPEG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+    }
+
+    return pdf;
+  } finally {
+    worksheetRenderRoot?.classList.remove("is-capturing");
+  }
+}
+
+function renderWorksheetPages(items, notationId, worksheetTitle) {
+  if (!worksheetRenderRoot) {
+    throw new Error("Worksheet render surface is not available.");
+  }
+
+  clearWorksheetRenderRoot();
+  const normalizedTitle = normalizeWorksheetTitle(worksheetTitle);
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "worksheet-doc";
+  wrapper.appendChild(createWorksheetPage({
+    title: normalizedTitle,
+    subtitle: "Simplify each Boolean expression to its minimal form.",
+    notationId,
+    items,
+    itemKey: "questionAst",
+  }));
+  wrapper.appendChild(createWorksheetPage({
+    title: `${normalizedTitle} Answers`,
+    subtitle: "Final answers for the worksheet questions.",
+    notationId,
+    items,
+    itemKey: "answerAst",
+  }));
+
+  worksheetRenderRoot.appendChild(wrapper);
+  return Array.from(wrapper.querySelectorAll(".worksheet-page"));
+}
+
+function createWorksheetPage({ title, subtitle, notationId, items, itemKey }) {
+  const page = document.createElement("section");
+  page.className = "worksheet-page";
+
+  const frame = document.createElement("div");
+  frame.className = "worksheet-frame";
+  page.appendChild(frame);
+
+  const header = document.createElement("header");
+  header.className = "worksheet-header";
+  frame.appendChild(header);
+
+  const heading = document.createElement("div");
+  heading.className = "worksheet-heading";
+  header.appendChild(heading);
+
+  const titleElement = document.createElement("h1");
+  titleElement.textContent = title;
+  heading.appendChild(titleElement);
+
+  const subtitleElement = document.createElement("p");
+  subtitleElement.textContent = subtitle;
+  heading.appendChild(subtitleElement);
+
+  const meta = document.createElement("div");
+  meta.className = "worksheet-meta";
+  meta.innerHTML = `<span>${notationId === "logic" ? "OCR" : "AQA"} notation</span>`;
+  header.appendChild(meta);
+
+  const list = document.createElement("ol");
+  list.className = "worksheet-list";
+  frame.appendChild(list);
+
+  for (const item of items) {
+    const listItem = document.createElement("li");
+    listItem.className = "worksheet-item";
+
+    const number = document.createElement("span");
+    number.className = "worksheet-item-number";
+    number.textContent = `${item.number}.`;
+    listItem.appendChild(number);
+
+    const content = document.createElement("div");
+    content.className = "worksheet-item-content";
+    const expression = renderWorksheetExpression(item[itemKey], notationId);
+    expression.classList.add("worksheet-expression");
+    content.appendChild(expression);
+    listItem.appendChild(content);
+
+    const targetGateCount = document.createElement("span");
+    targetGateCount.className = "worksheet-item-gates";
+    targetGateCount.textContent = `Target: ${item.targetGateCount} gates`;
+    listItem.appendChild(targetGateCount);
+
+    list.appendChild(listItem);
+  }
+
+  const footer = document.createElement("footer");
+  footer.className = "worksheet-footer";
+  footer.innerHTML = "<span>Generated with Boolinator</span><span>https://www.korovatron.co.uk/boolinator/</span>";
+  frame.appendChild(footer);
+
+  return page;
+}
+
+function renderWorksheetExpression(ast, notationId) {
+  return buildWorksheetExpressionNode(ast, notationId);
+}
+
+function buildWorksheetExpressionNode(node, notationId, parentPrecedence = 0) {
+  const precedence = {
+    const: 4,
+    var: 4,
+    not: 3,
+    and: 2,
+    or: 1,
+  };
+
+  let element;
+
+  if (node.type === "const") {
+    element = document.createElement("span");
+    element.textContent = node.value ? "1" : "0";
+    return element;
+  }
+
+  if (node.type === "var") {
+    element = document.createElement("span");
+    element.textContent = node.name;
+    return element;
+  }
+
+  if (node.type === "not") {
+    if (notationId === "aqa") {
+      const overbar = document.createElement("span");
+      overbar.className = "worksheet-overbar";
+
+      const overbarContent = document.createElement("span");
+      overbarContent.className = "worksheet-overbar-content";
+
+      if (node.expr.type === "and" || node.expr.type === "or") {
+        overbarContent.appendChild(wrapWorksheetExpression(
+          buildWorksheetExpressionNode(node.expr, notationId),
+        ));
+      } else {
+        overbarContent.appendChild(buildWorksheetExpressionNode(node.expr, notationId, precedence.not));
+      }
+
+      overbar.appendChild(overbarContent);
+
+      return overbar;
+    }
+
+    element = document.createElement("span");
+    element.append("¬");
+    element.appendChild(buildWorksheetExpressionNode(node.expr, notationId, precedence.not));
+    return element;
+  }
+
+  const children = flattenWorksheetExpression(node, node.type);
+  element = document.createElement("span");
+
+  children.forEach((child, index) => {
+    if (index > 0) {
+      element.append(node.type === "and"
+        ? (notationId === "aqa" ? "." : " ∧ ")
+        : (notationId === "aqa" ? " + " : " ∨ "));
+    }
+    element.appendChild(buildWorksheetExpressionNode(child, notationId, precedence[node.type]));
+  });
+
+  if (precedence[node.type] < parentPrecedence) {
+    return wrapWorksheetExpression(element);
+  }
+
+  return element;
+}
+
+function wrapWorksheetExpression(content) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "worksheet-group";
+  wrapper.append("(");
+  wrapper.appendChild(content);
+  wrapper.append(")");
+  return wrapper;
+}
+
+function flattenWorksheetExpression(node, type) {
+  if (node.type !== type) {
+    return [node];
+  }
+
+  return [
+    ...flattenWorksheetExpression(node.left, type),
+    ...flattenWorksheetExpression(node.right, type),
+  ];
+}
+
+function clearWorksheetRenderRoot() {
+  if (worksheetRenderRoot) {
+    worksheetRenderRoot.classList.remove("is-capturing");
+    worksheetRenderRoot.innerHTML = "";
+  }
+}
+
+async function waitForWorksheetRender() {
+  if (document.fonts?.ready) {
+    await document.fonts.ready.catch(() => {});
+  }
+
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function fitWorksheetPages(pages) {
+  for (const page of pages) {
+    let fontSize = 17;
+    page.style.setProperty("--worksheet-font-size", `${fontSize}px`);
+    fitWorksheetExpressions(page);
+
+    while (page.scrollHeight > page.clientHeight && fontSize > 12) {
+      fontSize -= 0.5;
+      page.style.setProperty("--worksheet-font-size", `${fontSize}px`);
+      fitWorksheetExpressions(page);
+    }
+  }
+}
+
+function fitWorksheetExpressions(page) {
+  const expressionRows = page.querySelectorAll(".worksheet-item-content");
+
+  for (const row of expressionRows) {
+    const expression = row.querySelector(".worksheet-expression");
+    if (!(expression instanceof HTMLElement)) {
+      continue;
+    }
+
+    let scale = 1;
+    expression.style.fontSize = `${scale}em`;
+
+    while (row.scrollWidth > row.clientWidth && scale > 0.72) {
+      scale -= 0.02;
+      expression.style.fontSize = `${scale}em`;
+    }
+  }
+}
+
+function buildWorksheetFilename(notationId, worksheetTitle) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const titleSlug = slugifyWorksheetTitle(worksheetTitle);
+  return `${titleSlug}-${notationId}-${stamp}.pdf`;
+}
+
+function normalizeWorksheetTitle(value) {
+  const trimmed = String(value ?? "").trim();
+  return trimmed || DEFAULT_WORKSHEET_TITLE;
+}
+
+function slugifyWorksheetTitle(value) {
+  const normalized = normalizeWorksheetTitle(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || "boolinator-worksheet";
 }
 
 function startNewChallenge() {

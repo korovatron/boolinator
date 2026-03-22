@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v94";
+const CACHE_NAME = "boolinator-v96";
 
 const LOCAL_ASSETS = [
   "./",
@@ -16,6 +16,8 @@ const LOCAL_ASSETS = [
 const CDN_ASSETS = [
   "https://esm.sh/mathjs@15.1.1",
   "https://esm.sh/mathlive@0.109.0",
+  "https://esm.sh/jspdf@2.5.2?bundle",
+  "https://esm.sh/html2canvas@1.4.1?bundle",
 ];
 
 function toScopeUrl(path) {
