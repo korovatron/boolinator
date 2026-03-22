@@ -121,79 +121,21 @@ const state = {
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
 
-function isIOSDevice() {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-
-  const ua = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const isIOSUA = /iPad|iPhone|iPod/.test(ua);
-  const isIPadOSDesktopUA = platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return isIOSUA || isIPadOSDesktopUA;
-}
-
-function isStandaloneDisplayMode() {
-  const byNavigator = typeof navigator !== "undefined" && navigator.standalone === true;
-  const byMediaQuery = typeof window.matchMedia === "function"
-    && (window.matchMedia("(display-mode: standalone)").matches
-      || window.matchMedia("(display-mode: fullscreen)").matches);
-  return byNavigator || byMediaQuery;
-}
-
-function updateViewportModeClass() {
-  const isIOSBrowserMode = isIOSDevice() && !isStandaloneDisplayMode();
-  document.body.classList.toggle("ios-browser", isIOSBrowserMode);
-}
-
-function syncAppViewportHeight() {
-  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
-    return;
-  }
-
-  // Round to avoid tiny oscillations that can trigger visual jitter on iOS.
-  document.documentElement.style.setProperty("--app-viewport-height", `${Math.round(viewportHeight)}px`);
-}
-
-function setupViewportStability() {
-  updateViewportModeClass();
-  syncAppViewportHeight();
-
-  const refreshViewportState = () => {
-    updateViewportModeClass();
-    syncAppViewportHeight();
-  };
-
-  window.addEventListener("resize", refreshViewportState, { passive: true });
-  window.addEventListener("orientationchange", refreshViewportState, { passive: true });
-  window.addEventListener("pageshow", refreshViewportState, { passive: true });
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      refreshViewportState();
-    }
-  });
-
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", syncAppViewportHeight, { passive: true });
-    window.visualViewport.addEventListener("scroll", syncAppViewportHeight, { passive: true });
-  }
-}
-
 function resetAppScrollToTop() {
-  if (!root) {
-    return;
-  }
-
   const applyReset = () => {
-    root.scrollTop = 0;
-    root.scrollLeft = 0;
-    try {
-      root.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    } catch {
-      // Older browsers may not support options object.
-      root.scrollTo(0, 0);
+    if (root) {
+      root.scrollTop = 0;
+      root.scrollLeft = 0;
+      try {
+        root.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      } catch {
+        // Older browsers may not support options object.
+        root.scrollTo(0, 0);
+      }
     }
+
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     window.scrollTo(0, 0);
   };
 
@@ -226,7 +168,6 @@ function forceAnswerFieldBlurReset() {
 }
 
 initializeTheme();
-setupViewportStability();
 setupMathFields();
 renderThemeToggle();
 renderNotationToggle();

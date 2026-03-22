@@ -45,8 +45,7 @@ body {
   font-family: "Chivo", "Segoe UI", sans-serif;
   color: var(--ink);
   background-color: #0a0f14;
-  /* Prevent iOS rubber banding scrolling */
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 body {
@@ -60,21 +59,8 @@ body {
 }
 
 #app {
-  height: 100vh;
-  height: 100svh;
-  height: var(--app-viewport-height, 100svh);
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/*
-  iOS Safari (non-PWA) can retain a collapsed browser-chrome viewport after
-  content shrinks, causing top content to creep into the notch area. Force a
-  stable small viewport height in that mode.
-*/
-body.ios-browser #app {
-  height: 100svh;
-  height: var(--app-viewport-height, 100svh);
+  min-height: 100vh;
+  min-height: 100svh;
 }
 
 #challengeField,
