@@ -617,6 +617,9 @@ body[data-theme="light"] #hintField::part(content) {
 
 .touch-key {
   min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
   background:
@@ -627,8 +630,11 @@ body[data-theme="light"] #hintField::part(content) {
 }
 
 .touch-key[data-touch-key="BACKSPACE"] {
-  font-size: 1.2rem;
+  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "Noto Sans Symbols", sans-serif;
+  font-size: clamp(1.35rem, 5.4vw, 1.9rem);
+  font-weight: 700;
   line-height: 1;
+  letter-spacing: 0;
 }
 
 .touch-key:active {

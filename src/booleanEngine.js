@@ -1042,29 +1042,283 @@ function minimalByGates(variables, outputs) {
   const sop = bestCover(ones, variables, rowCount, "sop");
   const pos = bestCover(zeros, variables, rowCount, "pos");
 
-  if (!sop && !pos) {
+  const candidates = [sop, pos]
+    .filter(Boolean)
+    .map((candidate) => refineMinimalCandidate(candidate));
+
+  if (candidates.length === 0) {
     return null;
   }
 
-  if (!sop) {
-    return pos;
+  const bestHeuristic = candidates.reduce((best, candidate) => {
+    if (!best) {
+      return candidate;
+    }
+    return isBetterMinimalCandidate(candidate, best) ? candidate : best;
+  }, null);
+  return bestHeuristic;
+}
+
+function isBetterMinimalCandidate(candidate, currentBest) {
+  if (candidate.gateCount !== currentBest.gateCount) {
+    return candidate.gateCount < currentBest.gateCount;
   }
 
-  if (!pos) {
-    return sop;
+  if (candidate.literalCount !== currentBest.literalCount) {
+    return candidate.literalCount < currentBest.literalCount;
   }
 
-  if (sop.gateCount !== pos.gateCount) {
-    return sop.gateCount < pos.gateCount ? sop : pos;
+  return astToNotationText(candidate.ast, "code").length
+    <= astToNotationText(currentBest.ast, "code").length;
+}
+
+function refineMinimalCandidate(candidate) {
+  const factoredAst = factorCommonLiterals(candidate.ast);
+  const factoredGateCount = gateCountAst(factoredAst);
+
+  if (factoredGateCount >= candidate.gateCount) {
+    return candidate;
   }
 
-  if (sop.literalCount !== pos.literalCount) {
-    return sop.literalCount < pos.literalCount ? sop : pos;
+  return {
+    ...candidate,
+    ast: factoredAst,
+    gateCount: factoredGateCount,
+    literalCount: literalOccurrenceCount(factoredAst),
+  };
+}
+
+function factorCommonLiterals(ast) {
+  let current = normalizeNotRuns(cloneAst(ast));
+
+  for (let pass = 0; pass < 6; pass += 1) {
+    const next = factorCommonLiteralsOnce(current);
+    if (!next) {
+      break;
+    }
+
+    const currentGates = gateCountAst(current);
+    const nextGates = gateCountAst(next);
+    if (nextGates >= currentGates) {
+      break;
+    }
+
+    current = normalizeNotRuns(next);
   }
 
-  return astToNotationText(sop.ast, "code").length <= astToNotationText(pos.ast, "code").length
-    ? sop
-    : pos;
+  return current;
+}
+
+function factorCommonLiteralsOnce(ast) {
+  if (!ast || (ast.type !== "or" && ast.type !== "and")) {
+    return null;
+  }
+
+  const rootKind = ast.type;
+  const innerKind = rootKind === "or" ? "and" : "or";
+  const operands = flatten(ast, rootKind);
+  if (operands.length < 2) {
+    return null;
+  }
+
+  const parsedOperands = operands.map((operand) => parseLiteralOperand(operand, innerKind));
+  const baselineGateCount = gateCountAst(ast);
+
+  let bestAst = null;
+  let bestGateCount = baselineGateCount;
+
+  for (let i = 0; i < operands.length - 1; i += 1) {
+    if (!parsedOperands[i]) {
+      continue;
+    }
+
+    for (let j = i + 1; j < operands.length; j += 1) {
+      if (!parsedOperands[j]) {
+        continue;
+      }
+
+      const candidate = buildFactoredPairAst(operands, parsedOperands, i, j, rootKind, innerKind);
+      if (!candidate) {
+        continue;
+      }
+
+      const candidateGateCount = gateCountAst(candidate);
+      if (candidateGateCount < bestGateCount) {
+        bestGateCount = candidateGateCount;
+        bestAst = candidate;
+      }
+    }
+  }
+
+  return bestAst;
+}
+
+function buildFactoredPairAst(operands, parsedOperands, leftIndex, rightIndex, rootKind, innerKind) {
+  const left = parsedOperands[leftIndex];
+  const right = parsedOperands[rightIndex];
+  const commonKeys = [];
+
+  const rightKeySet = new Set(right.keys);
+  for (const key of left.keys) {
+    if (rightKeySet.has(key)) {
+      commonKeys.push(key);
+    }
+  }
+
+  if (commonKeys.length === 0) {
+    return null;
+  }
+
+  const commonSet = new Set(commonKeys);
+  const leftResidualKeys = left.keys.filter((key) => !commonSet.has(key));
+  const rightResidualKeys = right.keys.filter((key) => !commonSet.has(key));
+
+  const common = buildOperandFromLiteralKeys(commonKeys, innerKind);
+  const leftResidual = buildOperandFromLiteralKeys(leftResidualKeys, innerKind);
+  const rightResidual = buildOperandFromLiteralKeys(rightResidualKeys, innerKind);
+  const mergedResidual = combineByKind(leftResidual, rightResidual, rootKind);
+  const factoredOperand = combineByKind(common, mergedResidual, innerKind);
+
+  const nextOperands = [];
+  for (let index = 0; index < operands.length; index += 1) {
+    if (index === leftIndex || index === rightIndex) {
+      continue;
+    }
+    nextOperands.push(cloneAst(operands[index]));
+  }
+  nextOperands.push(factoredOperand);
+
+  return chain(nextOperands, rootKind);
+}
+
+function parseLiteralOperand(node, innerKind) {
+  const literalNodes = node.type === innerKind ? flatten(node, innerKind) : [node];
+  if (literalNodes.length === 0) {
+    return null;
+  }
+
+  const keys = [];
+  const seen = new Set();
+  for (const literal of literalNodes) {
+    if (!isLiteralNode(literal)) {
+      return null;
+    }
+
+    const key = literalNodeKey(literal);
+    if (!seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+  }
+
+  return { keys };
+}
+
+function buildOperandFromLiteralKeys(keys, innerKind) {
+  if (keys.length === 0) {
+    return {
+      type: "const",
+      value: innerKind === "and",
+    };
+  }
+
+  const literals = keys.map((key) => literalNodeFromKey(key));
+  return chain(literals, innerKind);
+}
+
+function combineByKind(left, right, kind) {
+  if (kind === "and") {
+    if (left.type === "const" && left.value === false) {
+      return left;
+    }
+    if (right.type === "const" && right.value === false) {
+      return right;
+    }
+    if (left.type === "const" && left.value === true) {
+      return right;
+    }
+    if (right.type === "const" && right.value === true) {
+      return left;
+    }
+    return {
+      type: "and",
+      left,
+      right,
+    };
+  }
+
+  if (left.type === "const" && left.value === true) {
+    return left;
+  }
+  if (right.type === "const" && right.value === true) {
+    return right;
+  }
+  if (left.type === "const" && left.value === false) {
+    return right;
+  }
+  if (right.type === "const" && right.value === false) {
+    return left;
+  }
+  return {
+    type: "or",
+    left,
+    right,
+  };
+}
+
+function isLiteralNode(node) {
+  return node.type === "var" || (node.type === "not" && node.expr?.type === "var");
+}
+
+function literalNodeKey(node) {
+  if (node.type === "var") {
+    return node.name;
+  }
+  return `!${node.expr.name}`;
+}
+
+function literalNodeFromKey(key) {
+  if (key.startsWith("!")) {
+    return {
+      type: "not",
+      expr: {
+        type: "var",
+        name: key.slice(1),
+      },
+    };
+  }
+
+  return {
+    type: "var",
+    name: key,
+  };
+}
+
+function literalOccurrenceCount(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "var") {
+    return 1;
+  }
+
+  if (ast.type === "const") {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    if (ast.expr?.type === "var") {
+      return 1;
+    }
+    return literalOccurrenceCount(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return literalOccurrenceCount(ast.left) + literalOccurrenceCount(ast.right);
+  }
+
+  return 0;
 }
 
 function bestCover(targetRows, variables, rowCount, form) {

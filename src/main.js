@@ -1334,7 +1334,7 @@ function createWorksheetPage({ title, subtitle, notationId, items, itemKey }) {
 
     const targetGateCount = document.createElement("span");
     targetGateCount.className = "worksheet-item-gates";
-    targetGateCount.textContent = `Target: ${item.targetGateCount} gates`;
+    targetGateCount.textContent = `Target: ≤ ${item.targetGateCount} gates`;
     listItem.appendChild(targetGateCount);
 
     list.appendChild(listItem);
@@ -2036,7 +2036,7 @@ function findDualDistributiveComplementMatch(operands) {
 }
 
 function renderGateMetrics() {
-  minimalGateCount.textContent = `Target gates: ${state.challenge.minimalGateCount}`;
+  minimalGateCount.textContent = `Target gates: ≤ ${state.challenge.minimalGateCount}`;
 }
 
 function insertOverbarPlaceholder() {
