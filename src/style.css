@@ -46,6 +46,12 @@ body {
   color: var(--ink);
   background-color: transparent;
   overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 html {
