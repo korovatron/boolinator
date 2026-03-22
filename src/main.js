@@ -112,6 +112,7 @@ root.innerHTML = `
       <div class="actions">
         <button id="clearBtn" class="ghost-btn">Clear</button>
         <button id="hintBtn" class="ghost-btn">Hint</button>
+        <button id="inputHelpBtn" class="ghost-btn" type="button">Input Help</button>
         <button id="checkBtn" class="primary-btn">Submit</button>
       </div>
       <p id="feedbackSummary">Enter an expression and press Submit.</p>
@@ -127,6 +128,14 @@ root.innerHTML = `
     <p class="copyright">&copy; 2026 Neil Kendall</p>
     <p class="more-link">More @ <a href="https://www.korovatron.co.uk" target="_blank" rel="noopener noreferrer">www.korovatron.co.uk</a></p>
   </main>
+
+  <div id="inputHelpModal" class="input-help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="inputHelpTitle">
+    <div class="input-help-dialog" role="document">
+      <button id="closeInputHelpBtn" class="input-help-close" type="button" aria-label="Close input help">X</button>
+      <h3 id="inputHelpTitle">How to type expressions</h3>
+      <div id="inputHelpContent" class="input-help-content"></div>
+    </div>
+  </div>
 `;
 
 const themeToggle = document.querySelector("#themeToggle");
@@ -144,6 +153,10 @@ const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
 const submissionHistory = document.querySelector("#submissionHistory");
+const inputHelpBtn = document.querySelector("#inputHelpBtn");
+const inputHelpModal = document.querySelector("#inputHelpModal");
+const inputHelpContent = document.querySelector("#inputHelpContent");
+const closeInputHelpBtn = document.querySelector("#closeInputHelpBtn");
 let isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -269,6 +282,8 @@ function applyTheme() {
 
 function setupMathFields() {
   isTouchDevice = detectTouchDevice();
+  renderInputHelpButtonVisibility();
+  renderInputHelpModalContent();
 
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
@@ -530,6 +545,7 @@ function bindEvents() {
     renderSubmissionHistory();
     renderHint();
     renderTip();
+    renderInputHelpModalContent();
     retranslateAnswerField();
     applyAnswerKeybindings();
     renderTouchKeypad();
@@ -557,6 +573,26 @@ function bindEvents() {
   document.querySelector("#hintBtn").addEventListener("click", () => {
     hintArea.classList.remove("hidden");
     renderHint();
+  });
+
+  inputHelpBtn?.addEventListener("click", () => {
+    openInputHelpModal();
+  });
+
+  closeInputHelpBtn?.addEventListener("click", () => {
+    closeInputHelpModal();
+  });
+
+  inputHelpModal?.addEventListener("click", (event) => {
+    if (event.target === inputHelpModal) {
+      closeInputHelpModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && inputHelpModal && !inputHelpModal.classList.contains("hidden")) {
+      closeInputHelpModal();
+    }
   });
 
   document.addEventListener("copy", handleClipboardEvent, true);
@@ -768,7 +804,15 @@ function handleAnswerFieldKeydown(event) {
   }
 
   if (!/^[a-zA-Z]$/.test(key)) {
-    if (key === "." && state.notationId === "aqa") {
+    if (key === "=" && state.notationId === "aqa") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      deferAnswerMutation(() => insertAqaAwareToken("+"));
+      return;
+    }
+
+    if ((key === "." || key === ">") && state.notationId === "aqa") {
       event.preventDefault();
       event.stopImmediatePropagation();
       event.stopPropagation();
@@ -861,6 +905,70 @@ function detectTouchDevice() {
   }
 
   return false;
+}
+
+function renderInputHelpButtonVisibility() {
+  if (!inputHelpBtn) {
+    return;
+  }
+
+  const hideOnTouch = detectTouchDevice();
+  inputHelpBtn.classList.toggle("hidden", hideOnTouch);
+}
+
+function renderInputHelpModalContent() {
+  if (!inputHelpContent) {
+    return;
+  }
+
+  const currentModeLabel = state.notationId === "aqa" ? "AQA" : "OCR";
+  inputHelpContent.innerHTML = `
+    <p class="input-help-current">Current mode: <strong>${currentModeLabel}</strong></p>
+    <p>Available variables: <strong>A, B, C, D</strong>. Use brackets <strong>( )</strong> to group terms.</p>
+
+    <h4>AQA input</h4>
+    <table class="input-help-table" aria-label="AQA typing guide">
+      <thead>
+        <tr><th>Symbol</th><th>Meaning</th><th>Key to press</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>.</code></td><td>AND</td><td>Press <span class="key-chip">.</span> or <span class="key-chip">&gt;</span> (same key)</td></tr>
+        <tr><td><code>+</code></td><td>OR</td><td>Press <span class="key-chip">+</span> or <span class="key-chip">=</span> (same key)</td></tr>
+        <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span> (same physical key as <span class="key-chip">_</span>)</td></tr>
+      </tbody>
+    </table>
+
+    <h4>OCR input</h4>
+    <table class="input-help-table" aria-label="OCR typing guide">
+      <thead>
+        <tr><th>Symbol</th><th>Meaning</th><th>Key to press</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>∧</code></td><td>AND</td><td>Press <span class="key-chip">6</span> (the <span class="key-chip">^</span> key)</td></tr>
+        <tr><td><code>∨</code></td><td>OR</td><td>Press <span class="key-chip">V</span></td></tr>
+        <tr><td><code>¬</code></td><td>NOT</td><td>Press <span class="key-chip">-</span> (alternative: key left of <span class="key-chip">1</span>)</td></tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function openInputHelpModal() {
+  if (!inputHelpModal) {
+    return;
+  }
+
+  renderInputHelpModalContent();
+  inputHelpModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeInputHelpModal() {
+  if (!inputHelpModal) {
+    return;
+  }
+
+  inputHelpModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 }
 
 function startNewChallenge() {
@@ -1588,3 +1696,5 @@ function fieldHasSelection(field) {
     return Number(range[0]) !== Number(range[1]);
   });
 }
+
+

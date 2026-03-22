@@ -825,6 +825,119 @@ body:not([data-theme="light"]) .ghost-btn {
   justify-content: flex-end;
 }
 
+.input-help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(1, 10, 20, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.input-help-dialog {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: min(82vh, 760px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 88%, transparent);
+  background: var(--surface-elevated);
+  color: var(--ink);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.48);
+  padding: 18px 18px 14px;
+}
+
+.input-help-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 84%, transparent);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: 700 0.9rem/1 "IBM Plex Mono", monospace;
+}
+
+.input-help-content {
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.input-help-content h4 {
+  margin: 14px 0 6px;
+}
+
+.input-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.input-help-table th,
+.input-help-table td {
+  border: 1px solid color-mix(in srgb, var(--panel-border) 80%, transparent);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.input-help-table th {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  font-weight: 700;
+}
+
+.input-help-content code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88em;
+}
+
+.key-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  padding: 1px 7px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 68%, #ffffff 32%);
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86em;
+  font-weight: 700;
+  line-height: 1.25;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.overbar-symbol {
+  text-decoration: overline;
+  text-decoration-thickness: 2px;
+}
+
+.input-help-current {
+  margin-top: 2px;
+}
+
+@media (max-width: 620px) {
+  .input-help-table {
+    font-size: 0.84rem;
+  }
+
+  .input-help-table th,
+  .input-help-table td {
+    padding: 7px 8px;
+  }
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
 #feedbackSummary {
   margin-top: 10px;
   font-weight: 400;
@@ -912,6 +1025,12 @@ body[data-theme="light"] .hint-expression {
 
 @media (pointer: fine) {
   .touch-keypad {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse), (any-pointer: coarse) {
+  #inputHelpBtn {
     display: none !important;
   }
 }

@@ -1320,19 +1320,25 @@ function tokenize(rawInput) {
       continue;
     }
 
-    if (char === "+" || char === "|" || char === "∨") {
+    if (char === "+" || char === "=" || char === "|" || char === "∨") {
       tokens.push({ type: TOKEN.OR, raw: char });
       index += 1;
       continue;
     }
 
-    if (char === "." || char === "*" || char === "&" || char === "∧" || char === "·") {
+    if (char === "v" || char === "V") {
+      tokens.push({ type: TOKEN.OR, raw: char });
+      index += 1;
+      continue;
+    }
+
+    if (char === "." || char === ">" || char === "*" || char === "&" || char === "∧" || char === "·" || char === "^" || char === "6") {
       tokens.push({ type: TOKEN.AND, raw: char });
       index += 1;
       continue;
     }
 
-    if (char === "!" || char === "~" || char === "¬") {
+    if (char === "!" || char === "~" || char === "¬" || char === "-" || char === "_" || char === "`") {
       tokens.push({ type: TOKEN.NOT, raw: char });
       index += 1;
       continue;
@@ -1783,3 +1789,6 @@ function subsumes(generalPattern, specificPattern) {
   }
   return true;
 }
+
+
+
