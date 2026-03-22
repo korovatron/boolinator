@@ -44,12 +44,13 @@ body {
   min-height: 100%;
   font-family: "Chivo", "Segoe UI", sans-serif;
   color: var(--ink);
-  background-color: #0a0f14;
+  background-color: #09111f;
   overflow-x: hidden;
 }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: #09111f;
   background-image:
     radial-gradient(circle at 12% 10%, rgba(0, 216, 255, 0.14), transparent 40%),
@@ -60,7 +61,7 @@ body {
 
 #app {
   min-height: 100vh;
-  min-height: 100svh;
+  min-height: 100dvh;
 }
 
 #challengeField,
