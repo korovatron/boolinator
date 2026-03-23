@@ -176,6 +176,10 @@ export function randomChallenge() {
         continue;
       }
 
+      if (requireDeMorgan && !hasDeMorganPriority(candidate.initialAst)) {
+        continue;
+      }
+
       if (requireAPlusNotAB && !hasAPlusNotABPattern(candidate.initialAst)) {
         continue;
       }
@@ -250,6 +254,150 @@ function hasGroupedNotExpression(ast) {
   }
 
   return false;
+}
+
+function hasDeMorganPriority(ast) {
+  const groupedNotCount = countGroupedNotExpressions(ast);
+  if (groupedNotCount === 0) {
+    return false;
+  }
+
+  const absorptionBypassCount = countGroupedNotAbsorptionBypass(ast);
+  if (absorptionBypassCount > 0) {
+    return false;
+  }
+
+  const easyNonDeMorganCount = countEasyNonDeMorganPatterns(ast);
+  // Keep a little room for one easy clean-up, but prefer questions where
+  // De Morgan opportunities are at least as prominent as quick identity steps.
+  return easyNonDeMorganCount <= Math.max(1, groupedNotCount);
+}
+
+function countGroupedNotExpressions(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    const current = ast.expr && (ast.expr.type === "and" || ast.expr.type === "or") ? 1 : 0;
+    return current + countGroupedNotExpressions(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return countGroupedNotExpressions(ast.left) + countGroupedNotExpressions(ast.right);
+  }
+
+  return 0;
+}
+
+function countEasyNonDeMorganPatterns(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    return countEasyNonDeMorganPatterns(ast.expr);
+  }
+
+  if (ast.type !== "and" && ast.type !== "or") {
+    return 0;
+  }
+
+  const operands = flatten(ast, ast.type);
+  let count = 0;
+
+  if (ast.type === "or") {
+    if (operands.some((operand) => operand.type === "const" && operand.value)) {
+      count += 2;
+    }
+    if (operands.some((operand) => operand.type === "const" && !operand.value)) {
+      count += 1;
+    }
+  }
+
+  if (ast.type === "and") {
+    if (operands.some((operand) => operand.type === "const" && !operand.value)) {
+      count += 2;
+    }
+    if (operands.some((operand) => operand.type === "const" && operand.value)) {
+      count += 1;
+    }
+  }
+
+  count += countIdentityPatternsInChain(ast, ast.type);
+  return count
+    + countEasyNonDeMorganPatterns(ast.left)
+    + countEasyNonDeMorganPatterns(ast.right);
+}
+
+function countGroupedNotAbsorptionBypass(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    const current = isImmediateAbsorptionCandidateInChain(ast.expr) ? 1 : 0;
+    return current + countGroupedNotAbsorptionBypass(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return countGroupedNotAbsorptionBypass(ast.left) + countGroupedNotAbsorptionBypass(ast.right);
+  }
+
+  return 0;
+}
+
+function isImmediateAbsorptionCandidateInChain(node) {
+  if (!node || (node.type !== "and" && node.type !== "or")) {
+    return false;
+  }
+
+  const rootKind = node.type;
+  const nestedKind = rootKind === "or" ? "and" : "or";
+  const operands = flatten(node, rootKind);
+  const operandKeys = new Set(operands.map((operand) => astShapeKey(operand)));
+
+  for (const operand of operands) {
+    if (!operand || operand.type !== nestedKind) {
+      continue;
+    }
+
+    const nestedOperands = flatten(operand, nestedKind);
+    for (const nestedOperand of nestedOperands) {
+      if (operandKeys.has(astShapeKey(nestedOperand))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function astShapeKey(node) {
+  if (!node) {
+    return "?";
+  }
+
+  if (node.type === "var") {
+    return `v:${node.name}`;
+  }
+
+  if (node.type === "const") {
+    return node.value ? "c:1" : "c:0";
+  }
+
+  if (node.type === "not") {
+    return `n(${astShapeKey(node.expr)})`;
+  }
+
+  if (node.type === "and" || node.type === "or") {
+    const parts = flatten(node, node.type)
+      .map((child) => astShapeKey(child))
+      .sort();
+    return `${node.type}[${parts.join(",")}]`;
+  }
+
+  return "unknown";
 }
 
 function hasAPlusNotABPattern(ast) {
