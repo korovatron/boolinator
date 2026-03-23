@@ -1944,13 +1944,84 @@ function formatHintExpressionForNotation(expression, notationId) {
     .trim();
 }
 
+function formatHintExpressionHtml(expression, notationId) {
+  if (notationId === "logic") {
+    return escapeHtml(formatHintExpressionForNotation(expression, notationId));
+  }
+
+  return buildAqaHintExpressionHtml(String(expression));
+}
+
+function buildAqaHintExpressionHtml(expression) {
+  function readGroup(source, startIndex) {
+    let depth = 0;
+    for (let index = startIndex; index < source.length; index += 1) {
+      if (source[index] === "(") {
+        depth += 1;
+      } else if (source[index] === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          return {
+            endIndex: index,
+            html: `(${buildAqaHintExpressionHtml(source.slice(startIndex + 1, index))})`,
+          };
+        }
+      }
+    }
+
+    return {
+      endIndex: startIndex,
+      html: escapeHtml(source[startIndex]),
+    };
+  }
+
+  let html = "";
+
+  for (let index = 0; index < expression.length; index += 1) {
+    const char = expression[index];
+
+    if (char === "'") {
+      continue;
+    }
+
+    let unitHtml = "";
+
+    if (char === "(") {
+      const group = readGroup(expression, index);
+      unitHtml = group.html;
+      index = group.endIndex;
+    } else if (/[A-Za-z0-9]/.test(char)) {
+      let endIndex = index + 1;
+      while (endIndex < expression.length && /[A-Za-z0-9]/.test(expression[endIndex])) {
+        endIndex += 1;
+      }
+      unitHtml = escapeHtml(expression.slice(index, endIndex));
+      index = endIndex - 1;
+    } else {
+      html += escapeHtml(char);
+      continue;
+    }
+
+    let primeIndex = index + 1;
+    while (primeIndex < expression.length && expression[primeIndex] === "'") {
+      unitHtml = `<span class="overbar-symbol">${unitHtml}</span>`;
+      primeIndex += 1;
+    }
+
+    html += unitHtml;
+    index = primeIndex - 1;
+  }
+
+  return html;
+}
+
 function formatHintMessageHtml(message, notationId) {
   const segments = String(message).split(/`([^`]+)`/g);
   return segments
     .map((segment, index) => {
       if (index % 2 === 1) {
-        const formatted = formatHintExpressionForNotation(segment, notationId);
-        return `<span class="hint-expression">${escapeHtml(formatted)}</span>`;
+        const formattedHtml = formatHintExpressionHtml(segment, notationId);
+        return `<span class="hint-expression">${formattedHtml}</span>`;
       }
       return escapeHtml(segment);
     })
