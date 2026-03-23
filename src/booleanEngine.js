@@ -116,8 +116,8 @@ const STYLE_PROFILES = [
   },
 ];
 
-const DEMORGAN_TARGET_RATE = 0.9;
-const A_PLUS_NOTAB_TARGET_RATE = 0.08;
+const DEMORGAN_TARGET_RATE = 0.95;
+const A_PLUS_NOTAB_TARGET_RATE = 0.05;
 
 export function randomChallenge() {
   let bestCandidate = null;
@@ -258,7 +258,22 @@ function hasGroupedNotExpression(ast) {
 
 function hasDeMorganPriority(ast) {
   const groupedNotCount = countGroupedNotExpressions(ast);
-  if (groupedNotCount === 0) {
+  if (groupedNotCount < 2) {
+    return false;
+  }
+
+  const complexGroupedNotCount = countComplexGroupedNotExpressions(ast);
+  if (complexGroupedNotCount < 1) {
+    return false;
+  }
+
+  const styleStats = astStyleStats(ast);
+  if (styleStats.identityPatternCount > 1) {
+    return false;
+  }
+
+  const doubleNegationPairs = countDoubleNegationPairs(ast);
+  if (doubleNegationPairs > 1) {
     return false;
   }
 
@@ -267,10 +282,178 @@ function hasDeMorganPriority(ast) {
     return false;
   }
 
+  if (countGlobalAbsorptionBypass(ast) > 0) {
+    return false;
+  }
+
+  const conjugateBypassCount = countConjugateBypassPatterns(ast);
+  if (conjugateBypassCount > 0) {
+    return false;
+  }
+
   const easyNonDeMorganCount = countEasyNonDeMorganPatterns(ast);
-  // Keep a little room for one easy clean-up, but prefer questions where
-  // De Morgan opportunities are at least as prominent as quick identity steps.
-  return easyNonDeMorganCount <= Math.max(1, groupedNotCount);
+  const deMorganPressure = groupedNotCount + (2 * complexGroupedNotCount);
+  const shortcutPressure =
+    easyNonDeMorganCount
+    + (2 * styleStats.identityPatternCount)
+    + doubleNegationPairs;
+
+  // Ensure De Morgan opportunities dominate the likely shortcut paths.
+  return deMorganPressure >= shortcutPressure + 1;
+}
+
+function countComplexGroupedNotExpressions(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    const expr = ast.expr;
+    let current = 0;
+
+    if (expr && (expr.type === "and" || expr.type === "or")) {
+      const operands = flatten(expr, expr.type);
+      const hasNonLiteralOperand = operands.some((operand) => !isLiteralNode(operand));
+      if (operands.length >= 2 && hasNonLiteralOperand) {
+        current = 1;
+      }
+    }
+
+    return current + countComplexGroupedNotExpressions(expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return countComplexGroupedNotExpressions(ast.left) + countComplexGroupedNotExpressions(ast.right);
+  }
+
+  return 0;
+}
+
+function countDoubleNegationPairs(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "not") {
+    const current = ast.expr?.type === "not" ? 1 : 0;
+    return current + countDoubleNegationPairs(ast.expr);
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    return countDoubleNegationPairs(ast.left) + countDoubleNegationPairs(ast.right);
+  }
+
+  return 0;
+}
+
+function countGlobalAbsorptionBypass(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type === "and" || ast.type === "or") {
+    const current = isImmediateAbsorptionCandidateInChain(ast) ? 1 : 0;
+    return current + countGlobalAbsorptionBypass(ast.left) + countGlobalAbsorptionBypass(ast.right);
+  }
+
+  if (ast.type === "not") {
+    return countGlobalAbsorptionBypass(ast.expr);
+  }
+
+  return 0;
+}
+
+function countConjugateBypassPatterns(ast) {
+  if (!ast) {
+    return 0;
+  }
+
+  if (ast.type !== "and" && ast.type !== "or") {
+    if (ast.type === "not") {
+      return countConjugateBypassPatterns(ast.expr);
+    }
+    return 0;
+  }
+
+  let count = hasConjugateBypassInChain(ast) ? 1 : 0;
+  count += countConjugateBypassPatterns(ast.left);
+  count += countConjugateBypassPatterns(ast.right);
+  return count;
+}
+
+function hasConjugateBypassInChain(node) {
+  if (!node || (node.type !== "and" && node.type !== "or")) {
+    return false;
+  }
+
+  const rootKind = node.type;
+  const nestedKind = rootKind === "and" ? "or" : "and";
+  const operands = flatten(node, rootKind);
+
+  for (let i = 0; i < operands.length - 1; i += 1) {
+    if (operands[i].type !== nestedKind) {
+      continue;
+    }
+
+    for (let j = i + 1; j < operands.length; j += 1) {
+      if (operands[j].type !== nestedKind) {
+        continue;
+      }
+
+      if (areConjugateOperands(operands[i], operands[j], nestedKind)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function areConjugateOperands(leftNode, rightNode, nestedKind) {
+  const leftParts = flatten(leftNode, nestedKind).map((part) => astShapeKey(part));
+  const rightParts = flatten(rightNode, nestedKind).map((part) => astShapeKey(part));
+  const leftSet = new Set(leftParts);
+  const rightSet = new Set(rightParts);
+
+  let commonCount = 0;
+  for (const key of leftSet) {
+    if (rightSet.has(key)) {
+      commonCount += 1;
+    }
+  }
+
+  if (commonCount === 0) {
+    return false;
+  }
+
+  for (const key of leftSet) {
+    const complementKey = complementShapeKey(key);
+    if (complementKey && rightSet.has(complementKey)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function complementShapeKey(key) {
+  if (!key) {
+    return null;
+  }
+
+  if (key === "c:1") {
+    return "c:0";
+  }
+
+  if (key === "c:0") {
+    return "c:1";
+  }
+
+  if (key.startsWith("n(") && key.endsWith(")")) {
+    return key.slice(2, -1);
+  }
+
+  return `n(${key})`;
 }
 
 function countGroupedNotExpressions(ast) {
