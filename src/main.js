@@ -14,6 +14,7 @@ const WORKSHEET_QUESTION_COUNT = 10;
 const DEFAULT_WORKSHEET_TITLE = "Boolinator Worksheet";
 const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
 const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
+const VIEWPORT_SYNC_DELAYS_MS = [50, 150, 300, 500, 800, 1200];
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
@@ -224,6 +225,7 @@ const state = {
 
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
+let viewportSyncTimeoutIds = [];
 
 function isIOSDevice() {
   if (typeof navigator === "undefined") {
@@ -235,6 +237,116 @@ function isIOSDevice() {
   const isIOSUA = /iPad|iPhone|iPod/.test(ua);
   const isIPadOSDesktopUA = platform === "MacIntel" && navigator.maxTouchPoints > 1;
   return isIOSUA || isIPadOSDesktopUA;
+}
+
+function isStandalonePwa() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.navigator.standalone,
+  );
+}
+
+function isPortraitOrientation() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  if (window.matchMedia?.("(orientation: portrait)")?.matches) {
+    return true;
+  }
+
+  return window.innerHeight >= window.innerWidth;
+}
+
+function readSafeAreaInset(variableName) {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(variableName)
+    .trim();
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function computeActualViewportHeight() {
+  const visualViewportHeight = window.visualViewport?.height ?? 0;
+  const baseHeight = visualViewportHeight || window.innerHeight || document.documentElement.clientHeight || 0;
+
+  if (!isIOSDevice() || !isStandalonePwa() || !isPortraitOrientation()) {
+    return baseHeight;
+  }
+
+  const safeAreaTop = readSafeAreaInset("--safe-area-top");
+  const safeAreaBottom = readSafeAreaInset("--safe-area-bottom");
+  const screenHeight = window.screen?.height ?? 0;
+  const viewportGap = screenHeight > 0 ? screenHeight - baseHeight : 0;
+  const suspiciousGapLowerBound = Math.max(18, safeAreaTop * 0.6);
+  const suspiciousGapUpperBound = Math.max(72, safeAreaTop + safeAreaBottom + 36);
+
+  if (safeAreaTop > 0 && viewportGap >= suspiciousGapLowerBound && viewportGap <= suspiciousGapUpperBound) {
+    return baseHeight + safeAreaTop;
+  }
+
+  return baseHeight;
+}
+
+function applyActualViewportHeight() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const actualHeight = Math.max(0, Math.round(computeActualViewportHeight()));
+  document.documentElement.style.setProperty("--actual-vh", `${actualHeight}px`);
+}
+
+function scheduleViewportHeightStabilization() {
+  for (const timeoutId of viewportSyncTimeoutIds) {
+    clearTimeout(timeoutId);
+  }
+  viewportSyncTimeoutIds = [];
+
+  applyActualViewportHeight();
+
+  VIEWPORT_SYNC_DELAYS_MS.forEach((delay, index) => {
+    const timeoutId = window.setTimeout(() => {
+      applyActualViewportHeight();
+
+      if (index === VIEWPORT_SYNC_DELAYS_MS.length - 1) {
+        window.dispatchEvent(new Event("resize"));
+      }
+    }, delay);
+
+    viewportSyncTimeoutIds.push(timeoutId);
+  });
+}
+
+function initializeViewportHeightManagement() {
+  applyActualViewportHeight();
+  scheduleViewportHeightStabilization();
+
+  const refreshViewportHeight = () => {
+    scheduleViewportHeightStabilization();
+  };
+
+  window.addEventListener("resize", applyActualViewportHeight);
+  window.addEventListener("orientationchange", refreshViewportHeight);
+  window.addEventListener("pageshow", refreshViewportHeight);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", applyActualViewportHeight);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      refreshViewportHeight();
+    }
+  });
 }
 
 function setupIOSRubberBandSuppression() {
@@ -310,6 +422,7 @@ function forceAnswerFieldBlurReset() {
 
 initializeTheme();
 initializeNotation();
+initializeViewportHeightManagement();
 setupMathFields();
 setupIOSRubberBandSuppression();
 renderThemeToggle();
