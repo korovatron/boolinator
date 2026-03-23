@@ -210,6 +210,7 @@ const state = {
   unwrapTimeoutId: null,
   unwrapSource: "",
   unwrapFeedbackSnapshot: null,
+  unwrapSelectionSnapshot: null,
   suppressAnswerInputHandler: false,
 };
 
@@ -725,7 +726,7 @@ function bindEvents() {
 
   answerField.addEventListener("input", () => {
     if (!state.suppressAnswerInputHandler) {
-      cancelUnwrapMode({ restoreFeedback: true });
+      cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
     }
     applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
   });
@@ -877,12 +878,12 @@ function handleAnswerFieldKeydown(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
-    cancelUnwrapMode({ restoreFeedback: true });
+    cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
     return;
   }
 
   if (isUnwrapModeActive() && key !== "Shift") {
-    cancelUnwrapMode({ restoreFeedback: true });
+    cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
   }
 
   if (hasModifier) {
@@ -2182,6 +2183,7 @@ function cycleUnwrapCandidate() {
     }
 
     captureUnwrapFeedbackSnapshot();
+    captureUnwrapSelectionSnapshot();
     state.unwrapSource = source;
     state.unwrapCandidates = candidates;
     state.unwrapCandidateIndex = 0;
@@ -2233,7 +2235,7 @@ function confirmUnwrapCandidate() {
 }
 
 function cancelUnwrapMode(options = {}) {
-  const { restoreFeedback = false } = options;
+  const { restoreFeedback = false, restoreSelection = false } = options;
   const restoreSource = state.unwrapSource;
 
   if (state.unwrapTimeoutId !== null) {
@@ -2249,7 +2251,13 @@ function cancelUnwrapMode(options = {}) {
   state.unwrapCandidateIndex = -1;
   state.unwrapSource = "";
   syncAnswerFieldUnwrapModeClass();
-  collapseAnswerSelection();
+
+  if (restoreSelection) {
+    restoreUnwrapSelectionSnapshot();
+  } else {
+    state.unwrapSelectionSnapshot = null;
+    collapseAnswerSelection();
+  }
 
   if (restoreFeedback) {
     restoreUnwrapFeedbackSnapshot();
@@ -2314,6 +2322,48 @@ function setUnwrapFeedback() {
   feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">Remove NOT candidate ${candidateNumber} of ${candidateCount}. Press \\ to cycle, Enter to remove, Esc to cancel.</span>`;
   feedbackSummary.className = `${toneClass("info")} feedback-unwrap-active`;
   feedbackDetails.innerHTML = "";
+}
+
+function captureUnwrapSelectionSnapshot() {
+  if (state.unwrapSelectionSnapshot !== null) {
+    return;
+  }
+
+  const snapshot = getAnswerSelectionSnapshot();
+  state.unwrapSelectionSnapshot = snapshot;
+}
+
+function restoreUnwrapSelectionSnapshot() {
+  const snapshot = state.unwrapSelectionSnapshot;
+  if (!snapshot) {
+    return;
+  }
+
+  setAnswerSelection(snapshot.start, snapshot.end);
+  state.unwrapSelectionSnapshot = null;
+}
+
+function getAnswerSelectionSnapshot() {
+  const fallback = getFieldValue(answerField).length;
+  const selection = answerField.selection;
+  const ranges = selection?.ranges;
+
+  if (!Array.isArray(ranges) || ranges.length === 0 || !Array.isArray(ranges[0])) {
+    return { start: fallback, end: fallback };
+  }
+
+  const [rawStart, rawEnd] = ranges[0];
+  const start = Number(rawStart);
+  const end = Number(rawEnd);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return { start: fallback, end: fallback };
+  }
+
+  return {
+    start: Math.max(0, Math.min(start, end)),
+    end: Math.max(start, end),
+  };
 }
 
 function syncAnswerFieldUnwrapModeClass() {
