@@ -585,6 +585,10 @@ function runTouchKeypadAction(action) {
     return;
   }
 
+  if (isUnwrapModeActive()) {
+    cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
+  }
+
   try {
     answerField.focus({ preventScroll: true });
   } catch {
