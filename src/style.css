@@ -872,7 +872,59 @@ body:not([data-theme="light"]) .ghost-btn {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.actions-left,
+.actions-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.actions-right {
+  margin-left: auto;
   justify-content: flex-end;
+}
+
+.touch-unwrap-btn-active {
+  box-shadow: 0 0 0 1px transparent;
+}
+
+#touchUnwrapConfirmBtn.touch-unwrap-btn-active {
+  box-shadow:
+    0 0 0 1px transparent,
+    inset 0 0 0 1px transparent;
+}
+
+.touch-unwrap-btn:disabled {
+  opacity: 0.52;
+}
+
+body:not([data-theme="light"]) .touch-unwrap-btn-active {
+  border-color: #ffe66d;
+  box-shadow: 0 0 0 1px rgba(255, 230, 109, 0.32);
+  color: #ffe66d;
+}
+
+body:not([data-theme="light"]) #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 109, 0.32),
+    inset 0 0 0 1px rgba(255, 230, 109, 0.2);
+}
+
+body[data-theme="light"] .touch-unwrap-btn-active {
+  border-color: #c71686;
+  box-shadow: 0 0 0 1px rgba(199, 22, 134, 0.24);
+  color: #c71686;
+}
+
+body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
+  box-shadow:
+    0 0 0 1px rgba(199, 22, 134, 0.24),
+    inset 0 0 0 1px rgba(199, 22, 134, 0.16);
 }
 
 .input-help-modal {

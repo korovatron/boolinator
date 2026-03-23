@@ -112,10 +112,16 @@ root.innerHTML = `
       <math-field id="answerField" default-mode="math"></math-field>
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
-        <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
-        <button id="hintBtn" class="ghost-btn" title="Show a hint for the next simplification move.">Hint</button>
-        <button id="inputHelpBtn" class="ghost-btn" type="button" title="Open typing help for AQA and OCR symbols and key shortcuts.">Input Help</button>
-        <button id="checkBtn" class="primary-btn" title="Check whether your current step is equivalent and uses fewer gates.">Submit</button>
+        <div class="actions-left">
+          <button id="touchUnwrapCycleBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Highlight the next removable NOT gate in AQA mode."><span class="overbar-symbol">Cycle</span></button>
+          <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Delete the currently highlighted NOT gate in AQA mode.">DEL</button>
+        </div>
+        <div class="actions-right">
+          <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
+          <button id="hintBtn" class="ghost-btn" title="Show a hint for the next simplification move.">Hint</button>
+          <button id="inputHelpBtn" class="ghost-btn" type="button" title="Open typing help for AQA and OCR symbols and key shortcuts.">Input Help</button>
+          <button id="checkBtn" class="primary-btn" title="Check whether your current step is equivalent and uses fewer gates.">Submit</button>
+        </div>
       </div>
       <p id="feedbackSummary">Enter an expression and press Submit.</p>
       <div id="feedbackDetails" class="feedback-details"></div>
@@ -194,6 +200,8 @@ const worksheetStatus = document.querySelector("#worksheetStatus");
 const worksheetGenerateBtn = document.querySelector("#worksheetGenerateBtn");
 const closeWorksheetBtn = document.querySelector("#closeWorksheetBtn");
 const worksheetRenderRoot = document.querySelector("#worksheetRenderRoot");
+const touchUnwrapCycleBtn = document.querySelector("#touchUnwrapCycleBtn");
+const touchUnwrapConfirmBtn = document.querySelector("#touchUnwrapConfirmBtn");
 let isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -361,8 +369,62 @@ function setupMathFields() {
 
   applyAnswerKeybindings();
   renderTouchKeypad();
+  renderTouchUnwrapActionButtons();
   bindTouchKeypadEvents();
   applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
+}
+
+function renderTouchUnwrapActionButtons() {
+  const showButtons = shouldUseCustomTouchKeypad() && state.notationId === "aqa";
+  const active = isUnwrapModeActive();
+
+  if (touchUnwrapCycleBtn) {
+    touchUnwrapCycleBtn.classList.toggle("hidden", !showButtons);
+    touchUnwrapCycleBtn.classList.toggle("touch-unwrap-btn-active", active);
+    touchUnwrapCycleBtn.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+
+  if (touchUnwrapConfirmBtn) {
+    touchUnwrapConfirmBtn.classList.toggle("hidden", !showButtons);
+    touchUnwrapConfirmBtn.classList.toggle("touch-unwrap-btn-active", active);
+    touchUnwrapConfirmBtn.disabled = !showButtons || !active;
+  }
+}
+
+function handleTouchUnwrapCycle() {
+  if (state.notationId !== "aqa") {
+    return;
+  }
+
+  try {
+    answerField.focus({ preventScroll: true });
+  } catch {
+    answerField.focus();
+  }
+
+  if (!cycleUnwrapCandidate()) {
+    setFeedback(
+      "This expression has no removable NOT candidates right now.",
+      "info",
+      [],
+    );
+  }
+}
+
+function handleTouchUnwrapConfirm() {
+  if (state.notationId !== "aqa" || !isUnwrapModeActive()) {
+    return;
+  }
+
+  try {
+    answerField.focus({ preventScroll: true });
+  } catch {
+    answerField.focus();
+  }
+
+  if (!confirmUnwrapCandidate()) {
+    setFeedback("Could not remove the selected NOT candidate.", "warn", []);
+  }
 }
 
 function getTouchKeypadLayout() {
@@ -393,6 +455,7 @@ function renderTouchKeypad() {
   if (!shouldUseCustomTouchKeypad()) {
     touchKeypad.classList.add("hidden");
     touchKeypad.innerHTML = "";
+    renderTouchUnwrapActionButtons();
     return;
   }
 
@@ -401,6 +464,7 @@ function renderTouchKeypad() {
     .map((key) => `<button type="button" class="touch-key${key.kind === "action" ? " touch-key--action" : ""}" data-touch-key="${key.action}">${key.label}</button>`)
     .join("");
   touchKeypad.classList.remove("hidden");
+  renderTouchUnwrapActionButtons();
 }
 
 function runTouchKeypadAction(action) {
@@ -628,6 +692,7 @@ function bindEvents() {
     retranslateAnswerField();
     applyAnswerKeybindings();
     renderTouchKeypad();
+    renderTouchUnwrapActionButtons();
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
@@ -663,6 +728,14 @@ function bindEvents() {
     cancelUnwrapMode();
     hintArea.classList.remove("hidden");
     renderHint();
+  });
+
+  touchUnwrapCycleBtn?.addEventListener("click", () => {
+    handleTouchUnwrapCycle();
+  });
+
+  touchUnwrapConfirmBtn?.addEventListener("click", () => {
+    handleTouchUnwrapConfirm();
   });
 
   inputHelpBtn?.addEventListener("click", () => {
@@ -2231,6 +2304,7 @@ function confirmUnwrapCandidate() {
   cancelUnwrapMode();
   setFieldValue(answerField, nextLatex);
   setFeedback("Removed one NOT layer.", "info", []);
+  renderTouchUnwrapActionButtons();
   return true;
 }
 
@@ -2264,6 +2338,8 @@ function cancelUnwrapMode(options = {}) {
   } else {
     state.unwrapFeedbackSnapshot = null;
   }
+
+  renderTouchUnwrapActionButtons();
 }
 
 function scheduleUnwrapModeTimeout() {
@@ -2291,6 +2367,7 @@ function renderUnwrapCandidate() {
   syncAnswerFieldUnwrapModeClass();
   renderAnswerFieldWithUnwrapHighlight(candidate);
   setUnwrapFeedback();
+  renderTouchUnwrapActionButtons();
 }
 
 function captureUnwrapFeedbackSnapshot() {
