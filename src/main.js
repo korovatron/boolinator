@@ -124,11 +124,6 @@ root.innerHTML = `
         <math-field id="hintField" read-only></math-field>
         <p id="hintText" class="hint-text"></p>
       </div>
-      <div id="unwrapModeArea" class="hint-area hidden" aria-live="polite">
-        <p>Remove NOT</p>
-        <math-field id="unwrapModeField" read-only></math-field>
-        <p id="unwrapModeText" class="hint-text"></p>
-      </div>
       <p id="inputTip" class="notation-help"></p>
     </section>
 
@@ -186,9 +181,6 @@ const minimalGateCount = document.querySelector("#minimalGateCount");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
-const unwrapModeArea = document.querySelector("#unwrapModeArea");
-const unwrapModeField = document.querySelector("#unwrapModeField");
-const unwrapModeText = document.querySelector("#unwrapModeText");
 const submissionHistory = document.querySelector("#submissionHistory");
 const inputHelpBtn = document.querySelector("#inputHelpBtn");
 const inputHelpModal = document.querySelector("#inputHelpModal");
@@ -217,6 +209,8 @@ const state = {
   unwrapCandidateIndex: -1,
   unwrapTimeoutId: null,
   unwrapSource: "",
+  unwrapFeedbackSnapshot: null,
+  suppressAnswerInputHandler: false,
 };
 
 let _originalKeybindings = null;
@@ -349,7 +343,6 @@ function setupMathFields() {
 
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
-  unwrapModeField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
   answerField.mathVirtualKeyboardPolicy = "manual";
@@ -359,10 +352,8 @@ function setupMathFields() {
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
   disableMathFieldContextMenu(hintField);
-  disableMathFieldContextMenu(unwrapModeField);
   makeReadonlyMathFieldUnfocusable(challengeField);
   makeReadonlyMathFieldUnfocusable(hintField);
-  makeReadonlyMathFieldUnfocusable(unwrapModeField);
 
   notationHelp.classList.add("hidden");
   inputTip.classList.add("hidden");
@@ -733,7 +724,9 @@ function bindEvents() {
   });
 
   answerField.addEventListener("input", () => {
-    cancelUnwrapMode();
+    if (!state.suppressAnswerInputHandler) {
+      cancelUnwrapMode({ restoreFeedback: true });
+    }
     applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
   });
 
@@ -856,7 +849,7 @@ function handleAnswerFieldKeydown(event) {
   const key = event.key;
   const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
-  if (!hasModifier && key === "_") {
+  if (!hasModifier && key === "\\" && state.notationId === "aqa") {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
@@ -884,13 +877,12 @@ function handleAnswerFieldKeydown(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
-    cancelUnwrapMode();
-    setFeedback("Remove NOT cancelled.", "info", []);
+    cancelUnwrapMode({ restoreFeedback: true });
     return;
   }
 
   if (isUnwrapModeActive() && key !== "Shift") {
-    cancelUnwrapMode();
+    cancelUnwrapMode({ restoreFeedback: true });
   }
 
   if (hasModifier) {
@@ -949,7 +941,7 @@ function handleAnswerFieldKeydown(event) {
     return;
   }
 
-  if (key === "-" || key === "`" || key === "¬") {
+  if (key === "-" || key === "_" || key === "`" || key === "¬") {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
@@ -1094,9 +1086,7 @@ function renderInputHelpModalContent() {
     return;
   }
 
-  const currentModeLabel = state.notationId === "aqa" ? "AQA" : "OCR";
   inputHelpContent.innerHTML = `
-    <p class="input-help-current">Current mode: <strong>${currentModeLabel}</strong></p>
     <p>Available variables: <strong>A, B, C, D</strong>. Use brackets <strong>( )</strong> to group terms.</p>
 
     <h4>AQA input</h4>
@@ -1108,8 +1098,7 @@ function renderInputHelpModalContent() {
         <tr><td><code>.</code></td><td>AND</td><td>Press <span class="key-chip">.</span> or <span class="key-chip">&gt;</span> (same key)</td></tr>
         <tr><td><code>+</code></td><td>OR</td><td>Press <span class="key-chip">+</span> or <span class="key-chip">=</span> (same key)</td></tr>
         <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span></td></tr>
-        <tr><td><code>_</code></td><td>Cycle NOT candidates</td><td>Press <span class="key-chip">Shift</span>+<span class="key-chip">-</span> to cycle through removable NOTs</td></tr>
-        <tr><td><code>Enter</code></td><td>Remove selected NOT</td><td>Press <span class="key-chip">Enter</span> while Remove NOT preview is active</td></tr>
+        <tr><td colspan="3">To remove NOT gates: press <span class="key-chip">&#92;</span> to cycle through NOTs, then <span class="key-chip">Enter</span> to remove the highlighted one. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout.</td></tr>
       </tbody>
     </table>
 
@@ -2172,25 +2161,27 @@ function isUnwrapModeActive() {
 }
 
 function cycleUnwrapCandidate() {
-  const source = sanitizeLatex(getFieldValue(answerField)).trim();
+  if (state.notationId !== "aqa") {
+    cancelUnwrapMode();
+    return false;
+  }
+
+  const source = isUnwrapModeActive()
+    ? state.unwrapSource
+    : sanitizeLatex(getFieldValue(answerField)).trim();
   if (!source) {
     cancelUnwrapMode();
     return false;
   }
 
   if (!isUnwrapModeActive() || state.unwrapSource !== source) {
-    const ast = parseCurrentAnswerAst(source);
-    if (!ast) {
-      cancelUnwrapMode();
-      return false;
-    }
-
-    const candidates = collectUnwrapCandidates(ast);
+    const candidates = collectUnwrapCandidates(source);
     if (candidates.length === 0) {
       cancelUnwrapMode();
       return false;
     }
 
+    captureUnwrapFeedbackSnapshot();
     state.unwrapSource = source;
     state.unwrapCandidates = candidates;
     state.unwrapCandidateIndex = 0;
@@ -2208,14 +2199,8 @@ function confirmUnwrapCandidate() {
     return false;
   }
 
-  const source = sanitizeLatex(getFieldValue(answerField)).trim();
-  if (!source || source !== state.unwrapSource) {
-    cancelUnwrapMode();
-    return false;
-  }
-
-  const ast = parseCurrentAnswerAst(source);
-  if (!ast) {
+  const source = state.unwrapSource;
+  if (!source) {
     cancelUnwrapMode();
     return false;
   }
@@ -2226,27 +2211,51 @@ function confirmUnwrapCandidate() {
     return false;
   }
 
-  const nextAst = replaceNodeAtPath(ast, candidate.path, (node) => cloneBooleanAst(node.expr));
-  const nextLatex = formatAstForAnswerField(nextAst);
+  let nextLatex = "";
+
+  if (candidate.kind === "latex-overbar") {
+    nextLatex = `${source.slice(0, candidate.start)}${source.slice(candidate.innerStart, candidate.end)}${source.slice(candidate.end + 1)}`;
+  } else {
+    const ast = parseCurrentAnswerAst(source);
+    if (!ast) {
+      cancelUnwrapMode();
+      return false;
+    }
+
+    const nextAst = replaceNodeAtPath(ast, candidate.path, (node) => cloneBooleanAst(node.expr));
+    nextLatex = formatAstForAnswerField(nextAst);
+  }
+
   cancelUnwrapMode();
   setFieldValue(answerField, nextLatex);
   setFeedback("Removed one NOT layer.", "info", []);
   return true;
 }
 
-function cancelUnwrapMode() {
+function cancelUnwrapMode(options = {}) {
+  const { restoreFeedback = false } = options;
+  const restoreSource = state.unwrapSource;
+
   if (state.unwrapTimeoutId !== null) {
     clearTimeout(state.unwrapTimeoutId);
+  }
+
+  if (restoreSource) {
+    setAnswerFieldLatexSilently(restoreSource);
   }
 
   state.unwrapTimeoutId = null;
   state.unwrapCandidates = [];
   state.unwrapCandidateIndex = -1;
   state.unwrapSource = "";
+  syncAnswerFieldUnwrapModeClass();
+  collapseAnswerSelection();
 
-  unwrapModeArea.classList.add("hidden");
-  setFieldValue(unwrapModeField, "");
-  unwrapModeText.textContent = "";
+  if (restoreFeedback) {
+    restoreUnwrapFeedbackSnapshot();
+  } else {
+    state.unwrapFeedbackSnapshot = null;
+  }
 }
 
 function scheduleUnwrapModeTimeout() {
@@ -2255,8 +2264,8 @@ function scheduleUnwrapModeTimeout() {
   }
 
   state.unwrapTimeoutId = setTimeout(() => {
-    cancelUnwrapMode();
-  }, 2200);
+    cancelUnwrapMode({ restoreFeedback: true });
+  }, 5000);
 }
 
 function renderUnwrapCandidate() {
@@ -2271,9 +2280,45 @@ function renderUnwrapCandidate() {
     return;
   }
 
-  unwrapModeArea.classList.remove("hidden");
-  setFieldValue(unwrapModeField, candidate.latex);
-  unwrapModeText.textContent = `Candidate ${state.unwrapCandidateIndex + 1} of ${state.unwrapCandidates.length}. Press _ to cycle, Enter to remove, Esc to cancel.`;
+  syncAnswerFieldUnwrapModeClass();
+  renderAnswerFieldWithUnwrapHighlight(candidate);
+  setUnwrapFeedback();
+}
+
+function captureUnwrapFeedbackSnapshot() {
+  if (state.unwrapFeedbackSnapshot !== null) {
+    return;
+  }
+
+  state.unwrapFeedbackSnapshot = {
+    summaryHtml: feedbackSummary.innerHTML,
+    summaryClassName: feedbackSummary.className,
+    detailsHtml: feedbackDetails.innerHTML,
+  };
+}
+
+function restoreUnwrapFeedbackSnapshot() {
+  if (state.unwrapFeedbackSnapshot === null) {
+    return;
+  }
+
+  feedbackSummary.innerHTML = state.unwrapFeedbackSnapshot.summaryHtml;
+  feedbackSummary.className = state.unwrapFeedbackSnapshot.summaryClassName;
+  feedbackDetails.innerHTML = state.unwrapFeedbackSnapshot.detailsHtml;
+  state.unwrapFeedbackSnapshot = null;
+}
+
+function setUnwrapFeedback() {
+  const candidateNumber = state.unwrapCandidateIndex + 1;
+  const candidateCount = state.unwrapCandidates.length;
+  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">Remove NOT candidate ${candidateNumber} of ${candidateCount}. Press \\ to cycle, Enter to remove, Esc to cancel.</span>`;
+  feedbackSummary.className = `${toneClass("info")} feedback-unwrap-active`;
+  feedbackDetails.innerHTML = "";
+}
+
+function syncAnswerFieldUnwrapModeClass() {
+  const active = isUnwrapModeActive() && state.notationId === "aqa";
+  answerField.classList.toggle("answer-field-unwrap-mode", active);
 }
 
 function parseCurrentAnswerAst(source = sanitizeLatex(getFieldValue(answerField)).trim()) {
@@ -2288,7 +2333,19 @@ function parseCurrentAnswerAst(source = sanitizeLatex(getFieldValue(answerField)
   }
 }
 
-function collectUnwrapCandidates(ast) {
+function collectUnwrapCandidates(source) {
+  if (state.notationId === "aqa") {
+    const latexCandidates = collectOverbarCandidates(source);
+    if (latexCandidates.length > 0) {
+      return latexCandidates;
+    }
+  }
+
+  const ast = parseCurrentAnswerAst(source);
+  if (!ast) {
+    return [];
+  }
+
   const candidates = [];
 
   function walk(node, path) {
@@ -2298,6 +2355,7 @@ function collectUnwrapCandidates(ast) {
 
     if (node.type === "not") {
       candidates.push({
+        kind: "ast-not",
         path,
         latex: formatAstForAnswerField(node),
       });
@@ -2313,6 +2371,109 @@ function collectUnwrapCandidates(ast) {
 
   walk(ast, []);
   return candidates;
+}
+
+function collectOverbarCandidates(source) {
+  const marker = "\\overline{";
+  const candidates = [];
+
+  for (let index = 0; index < source.length; index += 1) {
+    const markerIndex = source.indexOf(marker, index);
+    if (markerIndex < 0) {
+      break;
+    }
+
+    const openBraceIndex = markerIndex + marker.length - 1;
+    const closeBraceIndex = findMatchingLatexBrace(source, openBraceIndex);
+    if (closeBraceIndex < 0) {
+      index = markerIndex;
+      continue;
+    }
+
+    candidates.push({
+      kind: "latex-overbar",
+      start: markerIndex,
+      innerStart: openBraceIndex + 1,
+      end: closeBraceIndex,
+      latex: source.slice(markerIndex, closeBraceIndex + 1),
+    });
+
+    // Advance by one from the current match so nested overbars that start
+    // immediately after '{' are still discovered on the next pass.
+    index = markerIndex;
+  }
+
+  return candidates;
+}
+
+function renderAnswerFieldWithUnwrapHighlight(candidate) {
+  if (!candidate || candidate.kind !== "latex-overbar" || state.notationId !== "aqa") {
+    setAnswerFieldLatexSilently(state.unwrapSource);
+    return;
+  }
+
+  const highlightColor = state.themeId === "light" ? "#d100b8" : "#ffeb3b";
+  const highlightedLatex = `${state.unwrapSource.slice(0, candidate.start)}\\textcolor{${highlightColor}}{${candidate.latex}}${state.unwrapSource.slice(candidate.end + 1)}`;
+  setAnswerFieldLatexSilently(highlightedLatex);
+}
+
+function setAnswerFieldLatexSilently(latex) {
+  state.suppressAnswerInputHandler = true;
+  try {
+    setFieldValue(answerField, latex);
+  } finally {
+    state.suppressAnswerInputHandler = false;
+  }
+}
+
+function findMatchingLatexBrace(text, openBraceIndex) {
+  if (openBraceIndex < 0 || text[openBraceIndex] !== "{") {
+    return -1;
+  }
+
+  let depth = 0;
+  for (let i = openBraceIndex; i < text.length; i += 1) {
+    if (text[i] === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (text[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function setAnswerSelection(start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return;
+  }
+
+  try {
+    answerField.selection = {
+      ranges: [[start, end]],
+      direction: "forward",
+    };
+    return;
+  } catch {
+    // Fall through.
+  }
+
+  try {
+    answerField.executeCommand?.(["setSelection", start, end]);
+  } catch {
+    // Ignore unavailable commands.
+  }
+}
+
+function collapseAnswerSelection() {
+  const length = getFieldValue(answerField).length;
+  setAnswerSelection(length, length);
 }
 
 function replaceNodeAtPath(ast, path, replacer) {

@@ -604,6 +604,20 @@ body[data-theme="light"] #hintField::part(content) {
   outline: none !important;
 }
 
+#answerField.answer-field-unwrap-mode {
+  --answer-border-unfocused: rgba(255, 235, 59, 0.65);
+  --answer-border-focused: rgba(255, 235, 59, 0.95);
+  --answer-glow-unfocused: rgba(255, 235, 59, 0.34);
+  --answer-glow-focused: rgba(255, 235, 59, 0.56);
+}
+
+body[data-theme="light"] #answerField.answer-field-unwrap-mode {
+  --answer-border-unfocused: rgba(209, 0, 184, 0.62);
+  --answer-border-focused: rgba(209, 0, 184, 0.92);
+  --answer-glow-unfocused: rgba(209, 0, 184, 0.28);
+  --answer-glow-focused: rgba(209, 0, 184, 0.46);
+}
+
 .touch-keypad {
   margin-top: 8px;
   margin-bottom: 8px;
@@ -684,14 +698,14 @@ body[data-theme="light"] .touch-key--action:active {
     var(--surface-elevated);
 }
 
-body[data-theme="light"] #answerField {
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode) {
   --answer-border-unfocused: rgba(16, 96, 146, 0.38);
   --answer-glow-unfocused: rgba(16, 96, 146, 0.18);
 }
 
-body[data-theme="light"] #answerField:focus-within,
-body[data-theme="light"] #answerField:focus,
-body[data-theme="light"] #answerField:focus-visible {
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus-within,
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus,
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus-visible {
   --answer-border-focused: color-mix(in srgb, var(--brand) 58%, #ffffff 42%);
   --answer-glow-focused: color-mix(in srgb, var(--brand) 28%, transparent);
 }
@@ -1165,6 +1179,18 @@ body.modal-open {
 #feedbackSummary {
   margin-top: 10px;
   font-weight: 400;
+}
+
+.feedback-unwrap-highlight {
+  font-weight: 700;
+}
+
+body:not([data-theme="light"]) .feedback-unwrap-active .feedback-unwrap-highlight {
+  color: #ffe66d;
+}
+
+body[data-theme="light"] .feedback-unwrap-active .feedback-unwrap-highlight {
+  color: #c71686;
 }
 
 .feedback-details {
