@@ -59,22 +59,20 @@ const STYLE_PROFILES = [
   {
     id: "aqa-demorgan",
     growOps: [
-      "demorganShellOr",
-      "demorganShellAnd",
+      "demorganInverseOr",
+      "demorganInverseAnd",
       "doubleNegation",
       "distributeOr",
       "distributeAnd",
       "absorptionOr",
-      "addZero",
-      "mulOne",
     ],
     fineOps: ["doubleNegation", "complementZero", "complementOne"],
     minConstants: 0,
-    maxConstants: 2,
+    maxConstants: 1,
     minLongNots: 2,
     minNotDepth: 2,
-    minIdentityPatterns: 1,
-    maxIdentityPatterns: 2,
+    minIdentityPatterns: 0,
+    maxIdentityPatterns: 1,
   },
   {
     id: "aqa-constants",
@@ -90,38 +88,36 @@ const STYLE_PROFILES = [
     ],
     fineOps: ["complementZero", "complementOne", "doubleNegation"],
     minConstants: 0,
-    maxConstants: 2,
+    maxConstants: 1,
     minLongNots: 1,
     minNotDepth: 1,
-    minIdentityPatterns: 1,
-    maxIdentityPatterns: 2,
+    minIdentityPatterns: 0,
+    maxIdentityPatterns: 1,
   },
   {
     id: "aqa-mixed",
     growOps: [
-      "demorganShellOr",
-      "demorganShellAnd",
+      "demorganInverseOr",
+      "demorganInverseAnd",
       "distributeOr",
       "distributeAnd",
       "absorptionOr",
       "absorptionAnd",
       "complementZero",
       "complementOne",
-      "addZero",
-      "mulOne",
     ],
     fineOps: ["doubleNegation", "complementZero", "complementOne"],
     minConstants: 0,
-    maxConstants: 2,
+    maxConstants: 1,
     minLongNots: 1,
     minNotDepth: 2,
-    minIdentityPatterns: 1,
-    maxIdentityPatterns: 2,
+    minIdentityPatterns: 0,
+    maxIdentityPatterns: 1,
   },
 ];
 
-const DEMORGAN_TARGET_RATE = 0.55;
-const A_PLUS_NOTAB_TARGET_RATE = 0.25;
+const DEMORGAN_TARGET_RATE = 0.9;
+const A_PLUS_NOTAB_TARGET_RATE = 0.08;
 
 export function randomChallenge() {
   let bestCandidate = null;
@@ -719,45 +715,35 @@ function applyExpansionTransform(name, node, variables) {
       };
     }
 
-    case "demorganShellOr": {
-      const variable = randomVariableAst(variables);
-      const contradiction = {
-        type: "and",
-        left: variable,
-        right: { type: "not", expr: cloneAst(variable) },
-      };
+    case "demorganInverseAnd": {
+      if (node.type !== "and") {
+        return null;
+      }
+
+      const factors = flatten(node, "and").map((factor) => ({
+        type: "not",
+        expr: cloneAst(factor),
+      }));
 
       return {
         type: "not",
-        expr: {
-          type: "or",
-          left: {
-            type: "not",
-            expr: node,
-          },
-          right: contradiction,
-        },
+        expr: chain(factors, "or"),
       };
     }
 
-    case "demorganShellAnd": {
-      const variable = randomVariableAst(variables);
-      const tautology = {
-        type: "or",
-        left: variable,
-        right: { type: "not", expr: cloneAst(variable) },
-      };
+    case "demorganInverseOr": {
+      if (node.type !== "or") {
+        return null;
+      }
+
+      const terms = flatten(node, "or").map((term) => ({
+        type: "not",
+        expr: cloneAst(term),
+      }));
 
       return {
         type: "not",
-        expr: {
-          type: "and",
-          left: {
-            type: "not",
-            expr: node,
-          },
-          right: tautology,
-        },
+        expr: chain(terms, "and"),
       };
     }
 
