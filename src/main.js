@@ -428,7 +428,7 @@ setupIOSRubberBandSuppression();
 renderThemeToggle();
 renderNotationToggle();
 bindEvents();
-startNewChallenge();
+startNewChallenge({ isInitialLoad: true });
 
 function initializeTheme() {
   try {
@@ -1428,7 +1428,13 @@ function buildWorksheetItems(count, notationId) {
 
   while (items.length < count && attempts < maxAttempts) {
     attempts += 1;
-    const challenge = randomChallenge();
+    let challenge = null;
+    try {
+      challenge = generateChallengeWithRetry(2);
+    } catch {
+      continue;
+    }
+
     const questionText = astToNotationText(challenge.initialAst, notationId);
     if (seenQuestions.has(questionText)) {
       continue;
@@ -1448,6 +1454,24 @@ function buildWorksheetItems(count, notationId) {
   }
 
   return items;
+}
+
+function generateChallengeWithRetry(maxRetries = 1) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return randomChallenge();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Could not build a non-trivial challenge. Try again.");
 }
 
 async function renderWorksheetPdfDocument(items, notationId, worksheetTitle) {
@@ -1760,9 +1784,34 @@ function slugifyWorksheetTitle(value) {
   return normalized || "boolinator-worksheet";
 }
 
-function startNewChallenge() {
+function startNewChallenge(options = {}) {
+  const { isInitialLoad = false } = options;
   cancelUnwrapMode();
-  state.challenge = randomChallenge();
+  const previousChallenge = state.challenge;
+
+  try {
+    state.challenge = generateChallengeWithRetry(3);
+  } catch (error) {
+    console.error("Challenge generation failed", error);
+    if (previousChallenge) {
+      setFeedback("Could not generate a new challenge right now. Please try again.", "error", []);
+      return;
+    }
+
+    if (isInitialLoad) {
+      setFeedback("Loading your first challenge...", "info", []);
+      setTimeout(() => {
+        if (!state.challenge) {
+          startNewChallenge({ isInitialLoad: true });
+        }
+      }, 250);
+      return;
+    }
+
+    setFeedback("Could not start a challenge right now. Please try again.", "error", []);
+    return;
+  }
+
   state.solved = false;
   state.bestEquivalent = null;
   state.equivalentSubmissions = [];
@@ -1778,11 +1827,13 @@ function startNewChallenge() {
   renderTip();
   resetAppScrollToTop();
 
-    setFeedback(
-      "New challenge loaded. Enter an equivalent expression with fewer gates.",
-      "info",
-      [],
-    );
+    if (!isInitialLoad) {
+      setFeedback(
+        "New challenge loaded. Enter an equivalent expression with fewer gates.",
+        "info",
+        [],
+      );
+    }
 
     if (!isTouchDevice) {
       requestAnimationFrame(() => {
