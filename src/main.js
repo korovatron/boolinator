@@ -124,6 +124,11 @@ root.innerHTML = `
         <math-field id="hintField" read-only></math-field>
         <p id="hintText" class="hint-text"></p>
       </div>
+      <div id="unwrapModeArea" class="hint-area hidden" aria-live="polite">
+        <p>Remove NOT</p>
+        <math-field id="unwrapModeField" read-only></math-field>
+        <p id="unwrapModeText" class="hint-text"></p>
+      </div>
       <p id="inputTip" class="notation-help"></p>
     </section>
 
@@ -181,6 +186,9 @@ const minimalGateCount = document.querySelector("#minimalGateCount");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
 const hintText = document.querySelector("#hintText");
+const unwrapModeArea = document.querySelector("#unwrapModeArea");
+const unwrapModeField = document.querySelector("#unwrapModeField");
+const unwrapModeText = document.querySelector("#unwrapModeText");
 const submissionHistory = document.querySelector("#submissionHistory");
 const inputHelpBtn = document.querySelector("#inputHelpBtn");
 const inputHelpModal = document.querySelector("#inputHelpModal");
@@ -205,6 +213,10 @@ const state = {
   equivalentSubmissions: [],
   pendingTemplateExit: false,
   worksheetGenerating: false,
+  unwrapCandidates: [],
+  unwrapCandidateIndex: -1,
+  unwrapTimeoutId: null,
+  unwrapSource: "",
 };
 
 let _originalKeybindings = null;
@@ -337,6 +349,7 @@ function setupMathFields() {
 
   challengeField.mathVirtualKeyboardPolicy = "manual";
   hintField.mathVirtualKeyboardPolicy = "manual";
+  unwrapModeField.mathVirtualKeyboardPolicy = "manual";
   answerField.defaultMode = "math";
   answerField.setAttribute("default-mode", "math");
   answerField.mathVirtualKeyboardPolicy = "manual";
@@ -346,8 +359,10 @@ function setupMathFields() {
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
   disableMathFieldContextMenu(hintField);
+  disableMathFieldContextMenu(unwrapModeField);
   makeReadonlyMathFieldUnfocusable(challengeField);
   makeReadonlyMathFieldUnfocusable(hintField);
+  makeReadonlyMathFieldUnfocusable(unwrapModeField);
 
   notationHelp.classList.add("hidden");
   inputTip.classList.add("hidden");
@@ -594,6 +609,7 @@ function bindEvents() {
   });
 
   notationToggle.addEventListener("click", () => {
+    cancelUnwrapMode();
     state.notationId = state.notationId === "aqa" ? "logic" : "aqa";
     renderNotationToggle();
     // Close keyboard on notation toggle
@@ -627,6 +643,7 @@ function bindEvents() {
   });
 
   document.querySelector("#resetBtn").addEventListener("click", () => {
+    cancelUnwrapMode();
     const resetExpression = latestResetExpression();
     setFieldValue(answerField, resetExpression);
 
@@ -644,12 +661,14 @@ function bindEvents() {
   });
 
   document.querySelector("#checkBtn").addEventListener("click", () => {
+    cancelUnwrapMode();
     checkAnswer();
     forceAnswerFieldBlurReset();
     answerField.classList.remove("answer-field-focused");
   });
 
   document.querySelector("#hintBtn").addEventListener("click", () => {
+    cancelUnwrapMode();
     hintArea.classList.remove("hidden");
     renderHint();
   });
@@ -714,6 +733,7 @@ function bindEvents() {
   });
 
   answerField.addEventListener("input", () => {
+    cancelUnwrapMode();
     applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
   });
 
@@ -833,11 +853,50 @@ function isWithinCopyAllowedArea(node) {
 }
 
 function handleAnswerFieldKeydown(event) {
-  if (event.ctrlKey || event.metaKey || event.altKey) {
+  const key = event.key;
+  const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+
+  if (!hasModifier && key === "_") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    if (!cycleUnwrapCandidate()) {
+      setFeedback(
+        "This expression has no removable NOT candidates right now.",
+        "info",
+        [],
+      );
+    }
     return;
   }
 
-  const key = event.key;
+  if (!hasModifier && key === "Enter" && isUnwrapModeActive()) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    if (!confirmUnwrapCandidate()) {
+      setFeedback("Could not remove the selected NOT candidate.", "warn", []);
+    }
+    return;
+  }
+
+  if (!hasModifier && key === "Escape" && isUnwrapModeActive()) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    cancelUnwrapMode();
+    setFeedback("Remove NOT cancelled.", "info", []);
+    return;
+  }
+
+  if (isUnwrapModeActive() && key !== "Shift") {
+    cancelUnwrapMode();
+  }
+
+  if (hasModifier) {
+    return;
+  }
+
   const isLogic = state.notationId === "logic";
   const hasSelection = fieldHasSelection(answerField);
 
@@ -890,7 +949,7 @@ function handleAnswerFieldKeydown(event) {
     return;
   }
 
-  if (key === "-" || key === "_" || key === "`" || key === "¬") {
+  if (key === "-" || key === "`" || key === "¬") {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
@@ -1048,7 +1107,9 @@ function renderInputHelpModalContent() {
       <tbody>
         <tr><td><code>.</code></td><td>AND</td><td>Press <span class="key-chip">.</span> or <span class="key-chip">&gt;</span> (same key)</td></tr>
         <tr><td><code>+</code></td><td>OR</td><td>Press <span class="key-chip">+</span> or <span class="key-chip">=</span> (same key)</td></tr>
-        <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span> (same physical key as <span class="key-chip">_</span>)</td></tr>
+        <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span></td></tr>
+        <tr><td><code>_</code></td><td>Cycle NOT candidates</td><td>Press <span class="key-chip">Shift</span>+<span class="key-chip">-</span> to cycle through removable NOTs</td></tr>
+        <tr><td><code>Enter</code></td><td>Remove selected NOT</td><td>Press <span class="key-chip">Enter</span> while Remove NOT preview is active</td></tr>
       </tbody>
     </table>
 
@@ -1520,6 +1581,7 @@ function slugifyWorksheetTitle(value) {
 }
 
 function startNewChallenge() {
+  cancelUnwrapMode();
   state.challenge = randomChallenge();
   state.solved = false;
   state.bestEquivalent = null;
@@ -1602,6 +1664,7 @@ function renderSubmissionHistory() {
 }
 
 function addEquivalentSubmission(ast) {
+  cancelUnwrapMode();
   const astSnapshot = JSON.parse(JSON.stringify(ast));
   state.equivalentSubmissions.push(astSnapshot);
   renderSubmissionHistory();
@@ -2102,6 +2165,215 @@ function insertIntoAnswer(content) {
 
   const current = getFieldValue(answerField);
   setFieldValue(answerField, `${current}${content}`);
+}
+
+function isUnwrapModeActive() {
+  return state.unwrapCandidates.length > 0 && state.unwrapCandidateIndex >= 0;
+}
+
+function cycleUnwrapCandidate() {
+  const source = sanitizeLatex(getFieldValue(answerField)).trim();
+  if (!source) {
+    cancelUnwrapMode();
+    return false;
+  }
+
+  if (!isUnwrapModeActive() || state.unwrapSource !== source) {
+    const ast = parseCurrentAnswerAst(source);
+    if (!ast) {
+      cancelUnwrapMode();
+      return false;
+    }
+
+    const candidates = collectUnwrapCandidates(ast);
+    if (candidates.length === 0) {
+      cancelUnwrapMode();
+      return false;
+    }
+
+    state.unwrapSource = source;
+    state.unwrapCandidates = candidates;
+    state.unwrapCandidateIndex = 0;
+  } else {
+    state.unwrapCandidateIndex = (state.unwrapCandidateIndex + 1) % state.unwrapCandidates.length;
+  }
+
+  renderUnwrapCandidate();
+  scheduleUnwrapModeTimeout();
+  return true;
+}
+
+function confirmUnwrapCandidate() {
+  if (!isUnwrapModeActive()) {
+    return false;
+  }
+
+  const source = sanitizeLatex(getFieldValue(answerField)).trim();
+  if (!source || source !== state.unwrapSource) {
+    cancelUnwrapMode();
+    return false;
+  }
+
+  const ast = parseCurrentAnswerAst(source);
+  if (!ast) {
+    cancelUnwrapMode();
+    return false;
+  }
+
+  const candidate = state.unwrapCandidates[state.unwrapCandidateIndex];
+  if (!candidate) {
+    cancelUnwrapMode();
+    return false;
+  }
+
+  const nextAst = replaceNodeAtPath(ast, candidate.path, (node) => cloneBooleanAst(node.expr));
+  const nextLatex = formatAstForAnswerField(nextAst);
+  cancelUnwrapMode();
+  setFieldValue(answerField, nextLatex);
+  setFeedback("Removed one NOT layer.", "info", []);
+  return true;
+}
+
+function cancelUnwrapMode() {
+  if (state.unwrapTimeoutId !== null) {
+    clearTimeout(state.unwrapTimeoutId);
+  }
+
+  state.unwrapTimeoutId = null;
+  state.unwrapCandidates = [];
+  state.unwrapCandidateIndex = -1;
+  state.unwrapSource = "";
+
+  unwrapModeArea.classList.add("hidden");
+  setFieldValue(unwrapModeField, "");
+  unwrapModeText.textContent = "";
+}
+
+function scheduleUnwrapModeTimeout() {
+  if (state.unwrapTimeoutId !== null) {
+    clearTimeout(state.unwrapTimeoutId);
+  }
+
+  state.unwrapTimeoutId = setTimeout(() => {
+    cancelUnwrapMode();
+  }, 2200);
+}
+
+function renderUnwrapCandidate() {
+  if (!isUnwrapModeActive()) {
+    cancelUnwrapMode();
+    return;
+  }
+
+  const candidate = state.unwrapCandidates[state.unwrapCandidateIndex];
+  if (!candidate) {
+    cancelUnwrapMode();
+    return;
+  }
+
+  unwrapModeArea.classList.remove("hidden");
+  setFieldValue(unwrapModeField, candidate.latex);
+  unwrapModeText.textContent = `Candidate ${state.unwrapCandidateIndex + 1} of ${state.unwrapCandidates.length}. Press _ to cycle, Enter to remove, Esc to cancel.`;
+}
+
+function parseCurrentAnswerAst(source = sanitizeLatex(getFieldValue(answerField)).trim()) {
+  if (!source) {
+    return null;
+  }
+
+  try {
+    return parseBooleanExpression(source);
+  } catch {
+    return null;
+  }
+}
+
+function collectUnwrapCandidates(ast) {
+  const candidates = [];
+
+  function walk(node, path) {
+    if (!node) {
+      return;
+    }
+
+    if (node.type === "not") {
+      candidates.push({
+        path,
+        latex: formatAstForAnswerField(node),
+      });
+      walk(node.expr, [...path, "expr"]);
+      return;
+    }
+
+    if (node.type === "and" || node.type === "or") {
+      walk(node.left, [...path, "left"]);
+      walk(node.right, [...path, "right"]);
+    }
+  }
+
+  walk(ast, []);
+  return candidates;
+}
+
+function replaceNodeAtPath(ast, path, replacer) {
+  if (!Array.isArray(path) || path.length === 0) {
+    return replacer(ast);
+  }
+
+  const [head, ...tail] = path;
+  const cloned = cloneBooleanAst(ast);
+
+  if (head === "expr") {
+    cloned.expr = replaceNodeAtPath(cloned.expr, tail, replacer);
+    return cloned;
+  }
+
+  if (head === "left") {
+    cloned.left = replaceNodeAtPath(cloned.left, tail, replacer);
+    return cloned;
+  }
+
+  if (head === "right") {
+    cloned.right = replaceNodeAtPath(cloned.right, tail, replacer);
+    return cloned;
+  }
+
+  return cloned;
+}
+
+function cloneBooleanAst(node) {
+  if (!node) {
+    return node;
+  }
+
+  if (node.type === "var") {
+    return { type: "var", name: node.name };
+  }
+
+  if (node.type === "const") {
+    return { type: "const", value: node.value };
+  }
+
+  if (node.type === "not") {
+    return {
+      type: "not",
+      expr: cloneBooleanAst(node.expr),
+    };
+  }
+
+  if (node.type === "and" || node.type === "or") {
+    return {
+      type: node.type,
+      left: cloneBooleanAst(node.left),
+      right: cloneBooleanAst(node.right),
+    };
+  }
+
+  if (typeof structuredClone === "function") {
+    return structuredClone(node);
+  }
+
+  return JSON.parse(JSON.stringify(node));
 }
 
 function sanitizeLatex(latex) {
