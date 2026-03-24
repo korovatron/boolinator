@@ -87,6 +87,11 @@ root.innerHTML = `
           <span class="mode-divider">|</span>
           <span class="mode-aqa">AQA</span>
         </button>
+        <button id="difficultyToggle" class="mode-toggle" type="button" aria-label="Toggle question difficulty" title="Switch generated question difficulty (Advanced or Standard)">
+          <span class="mode-hard">Advanced</span>
+          <span class="mode-divider">|</span>
+          <span class="mode-easy">Standard</span>
+        </button>
       </div>
     </header>
 
@@ -164,6 +169,14 @@ root.innerHTML = `
           <option value="aqa">AQA</option>
         </select>
       </div>
+      <div class="control-row">
+        <label for="worksheetDifficulty">Worksheet difficulty</label>
+        <select id="worksheetDifficulty">
+          <option value="easy">Standard</option>
+          <option value="mixed">Mixed</option>
+          <option value="hard">Advanced</option>
+        </select>
+      </div>
       <p id="worksheetStatus" class="worksheet-status" aria-live="polite"></p>
       <div class="actions worksheet-actions">
         <button id="worksheetGenerateBtn" class="ghost-btn" type="button">Generate Worksheet</button>
@@ -176,6 +189,7 @@ root.innerHTML = `
 
 const themeToggle = document.querySelector("#themeToggle");
 const notationToggle = document.querySelector("#notationToggle");
+const difficultyToggle = document.querySelector("#difficultyToggle");
 const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
 const answerPanel = document.querySelector(".panel.answer");
@@ -197,6 +211,7 @@ const worksheetBtn = document.querySelector("#worksheetBtn");
 const worksheetModal = document.querySelector("#worksheetModal");
 const worksheetTitleInput = document.querySelector("#worksheetTitleInput");
 const worksheetNotation = document.querySelector("#worksheetNotation");
+const worksheetDifficulty = document.querySelector("#worksheetDifficulty");
 const worksheetStatus = document.querySelector("#worksheetStatus");
 const worksheetGenerateBtn = document.querySelector("#worksheetGenerateBtn");
 const closeWorksheetBtn = document.querySelector("#closeWorksheetBtn");
@@ -208,6 +223,8 @@ let isTouchDevice = detectTouchDevice();
 const state = {
   themeId: "dark",
   notationId: "aqa",
+  difficultyId: "hard",
+  worksheetDifficultyId: "mixed",
   challenge: null,
   solved: false,
   bestEquivalent: null,
@@ -422,11 +439,14 @@ function forceAnswerFieldBlurReset() {
 
 initializeTheme();
 initializeNotation();
+initializeDifficulty();
+initializeWorksheetDifficulty();
 initializeViewportHeightManagement();
 setupMathFields();
 setupIOSRubberBandSuppression();
 renderThemeToggle();
 renderNotationToggle();
+renderDifficultyToggle();
 bindEvents();
 startNewChallenge({ isInitialLoad: true });
 
@@ -451,6 +471,28 @@ function initializeNotation() {
     }
   } catch {
     // LocalStorage can be unavailable; default to AQA.
+  }
+}
+
+function initializeDifficulty() {
+  try {
+    const storedDifficulty = window.localStorage.getItem("boolinator-difficulty");
+    if (storedDifficulty === "easy" || storedDifficulty === "hard") {
+      state.difficultyId = storedDifficulty;
+    }
+  } catch {
+    // LocalStorage can be unavailable; default to hard.
+  }
+}
+
+function initializeWorksheetDifficulty() {
+  try {
+    const storedDifficulty = window.localStorage.getItem("boolinator-worksheet-difficulty");
+    if (storedDifficulty === "easy" || storedDifficulty === "mixed" || storedDifficulty === "hard") {
+      state.worksheetDifficultyId = storedDifficulty;
+    }
+  } catch {
+    // LocalStorage can be unavailable; default to mixed.
   }
 }
 
@@ -746,6 +788,11 @@ function renderNotationToggle() {
   notationToggle.classList.toggle("mode-ocr-active", state.notationId === "logic");
 }
 
+function renderDifficultyToggle() {
+  difficultyToggle.classList.toggle("mode-easy-active", state.difficultyId === "easy");
+  difficultyToggle.classList.toggle("mode-hard-active", state.difficultyId === "hard");
+}
+
 function renderThemeToggle() {
   themeToggle.classList.toggle("theme-dark-active", state.themeId === "dark");
   themeToggle.classList.toggle("theme-light-active", state.themeId === "light");
@@ -797,6 +844,19 @@ function bindEvents() {
     }
 
     applyNotationMode();
+  });
+
+  difficultyToggle.addEventListener("click", () => {
+    state.difficultyId = state.difficultyId === "hard" ? "easy" : "hard";
+    renderDifficultyToggle();
+
+    try {
+      window.localStorage.setItem("boolinator-difficulty", state.difficultyId);
+    } catch {
+      // Ignore if storage is blocked.
+    }
+
+    startNewChallenge();
   });
 
   const applyNotationMode = () => {
@@ -875,6 +935,19 @@ function bindEvents() {
 
   worksheetGenerateBtn?.addEventListener("click", () => {
     void generateWorksheetPdf();
+  });
+
+  worksheetDifficulty?.addEventListener("change", () => {
+    if (worksheetDifficulty.value === "easy" || worksheetDifficulty.value === "hard" || worksheetDifficulty.value === "mixed") {
+      state.worksheetDifficultyId = worksheetDifficulty.value;
+    } else {
+      state.worksheetDifficultyId = "mixed";
+    }
+    try {
+      window.localStorage.setItem("boolinator-worksheet-difficulty", state.worksheetDifficultyId);
+    } catch {
+      // Ignore if storage is blocked.
+    }
   });
 
   closeWorksheetBtn?.addEventListener("click", () => {
@@ -1339,6 +1412,9 @@ function openWorksheetModal() {
   if (worksheetNotation) {
     worksheetNotation.value = state.notationId;
   }
+  if (worksheetDifficulty) {
+    worksheetDifficulty.value = state.worksheetDifficultyId;
+  }
   setWorksheetStatus("", "neutral");
   renderWorksheetModalState();
   worksheetModal.classList.remove("hidden");
@@ -1371,6 +1447,9 @@ function renderWorksheetModalState() {
 
   worksheetGenerateBtn.disabled = state.worksheetGenerating;
   worksheetNotation.disabled = state.worksheetGenerating;
+  if (worksheetDifficulty) {
+    worksheetDifficulty.disabled = state.worksheetGenerating;
+  }
   worksheetTitleInput.disabled = state.worksheetGenerating;
   worksheetGenerateBtn.textContent = state.worksheetGenerating
     ? "Generating PDF..."
@@ -1392,7 +1471,11 @@ async function generateWorksheetPdf() {
   }
 
   const notationId = worksheetNotation?.value === "logic" ? "logic" : "aqa";
+  const worksheetDifficultyId = worksheetDifficulty?.value === "easy" || worksheetDifficulty?.value === "hard" || worksheetDifficulty?.value === "mixed"
+    ? worksheetDifficulty.value
+    : "mixed";
   const worksheetTitle = normalizeWorksheetTitle(worksheetTitleInput?.value);
+  state.worksheetDifficultyId = worksheetDifficultyId;
   if (worksheetTitleInput) {
     worksheetTitleInput.value = worksheetTitle;
   }
@@ -1401,7 +1484,7 @@ async function generateWorksheetPdf() {
   setWorksheetStatus("Generating fresh questions...", "info");
 
   try {
-    const worksheetItems = buildWorksheetItems(WORKSHEET_QUESTION_COUNT, notationId);
+    const worksheetItems = buildWorksheetItems(WORKSHEET_QUESTION_COUNT, notationId, worksheetDifficultyId);
     setWorksheetStatus("Rendering the PDF pages...", "info");
     const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
     const filename = buildWorksheetFilename(notationId, worksheetTitle);
@@ -1420,7 +1503,11 @@ async function generateWorksheetPdf() {
   }
 }
 
-function buildWorksheetItems(count, notationId) {
+function buildWorksheetItems(count, notationId, difficultyId = "hard") {
+  if (difficultyId === "mixed") {
+    return buildMixedWorksheetItems(count, notationId);
+  }
+
   const items = [];
   const seenQuestions = new Set();
   const maxAttempts = count * 30;
@@ -1430,7 +1517,7 @@ function buildWorksheetItems(count, notationId) {
     attempts += 1;
     let challenge = null;
     try {
-      challenge = generateChallengeWithRetry(2);
+      challenge = generateChallengeWithRetry(2, difficultyId);
     } catch {
       continue;
     }
@@ -1456,12 +1543,57 @@ function buildWorksheetItems(count, notationId) {
   return items;
 }
 
-function generateChallengeWithRetry(maxRetries = 1) {
+function buildMixedWorksheetItems(count, notationId) {
+  const easierCount = Math.min(5, count);
+  const advancedCount = Math.max(0, count - easierCount);
+  const items = [];
+  const seenQuestions = new Set();
+
+  appendWorksheetItemsByDifficulty(items, seenQuestions, easierCount, notationId, "easy");
+  appendWorksheetItemsByDifficulty(items, seenQuestions, advancedCount, notationId, "hard");
+
+  return items;
+}
+
+function appendWorksheetItemsByDifficulty(items, seenQuestions, amount, notationId, difficultyId) {
+  const maxAttempts = Math.max(amount * 35, 35);
+  let attempts = 0;
+
+  while (amount > 0 && attempts < maxAttempts) {
+    attempts += 1;
+    let challenge = null;
+    try {
+      challenge = generateChallengeWithRetry(2, difficultyId);
+    } catch {
+      continue;
+    }
+
+    const questionText = astToNotationText(challenge.initialAst, notationId);
+    if (seenQuestions.has(questionText)) {
+      continue;
+    }
+
+    seenQuestions.add(questionText);
+    items.push({
+      number: items.length + 1,
+      questionAst: challenge.initialAst,
+      answerAst: challenge.minimalAst,
+      targetGateCount: challenge.minimalGateCount,
+    });
+    amount -= 1;
+  }
+
+  if (amount > 0) {
+    throw new Error("Could not generate enough distinct worksheet questions. Please try again.");
+  }
+}
+
+function generateChallengeWithRetry(maxRetries = 1, difficultyId = state.difficultyId) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      return randomChallenge();
+      return randomChallenge({ difficulty: difficultyId });
     } catch (error) {
       lastError = error;
     }

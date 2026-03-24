@@ -28,7 +28,7 @@ export const NOTATIONS = [
   },
 ];
 
-const CHALLENGE_TIERS = [
+const HARD_CHALLENGE_TIERS = [
   {
     initialMin: 10,
     initialMax: 15,
@@ -55,7 +55,26 @@ const CHALLENGE_TIERS = [
   },
 ];
 
-const STYLE_PROFILES = [
+const EASY_CHALLENGE_TIERS = [
+  {
+    initialMin: 5,
+    initialMax: 8,
+    minimalMin: 0,
+    minimalMax: 4,
+    minReduction: 2,
+    attempts: 280,
+  },
+  {
+    initialMin: 6,
+    initialMax: 9,
+    minimalMin: 0,
+    minimalMax: 5,
+    minReduction: 2,
+    attempts: 240,
+  },
+];
+
+const HARD_STYLE_PROFILES = [
   {
     id: "aqa-demorgan",
     growOps: [
@@ -116,18 +135,79 @@ const STYLE_PROFILES = [
   },
 ];
 
-const DEMORGAN_TARGET_RATE = 0.95;
-const A_PLUS_NOTAB_TARGET_RATE = 0.05;
+const EASY_STYLE_PROFILES = [
+  {
+    id: "easy-foundation",
+    growOps: [
+      "addZero",
+      "mulOne",
+      "complementZero",
+      "complementOne",
+      "absorptionOr",
+      "absorptionAnd",
+    ],
+    fineOps: ["addZero", "mulOne", "complementZero", "complementOne"],
+    minConstants: 0,
+    maxConstants: 2,
+    minLongNots: 0,
+    minNotDepth: 0,
+    minIdentityPatterns: 0,
+    maxIdentityPatterns: 2,
+  },
+  {
+    id: "easy-mixed",
+    growOps: [
+      "addZero",
+      "mulOne",
+      "complementZero",
+      "complementOne",
+      "absorptionOr",
+      "absorptionAnd",
+      "distributeOr",
+      "distributeAnd",
+      "demorganInverseOr",
+    ],
+    fineOps: ["addZero", "mulOne", "complementZero", "complementOne"],
+    minConstants: 0,
+    maxConstants: 2,
+    minLongNots: 0,
+    minNotDepth: 0,
+    minIdentityPatterns: 0,
+    maxIdentityPatterns: 2,
+  },
+];
 
-export function randomChallenge() {
+const DIFFICULTY_PRESETS = {
+  hard: {
+    tiers: HARD_CHALLENGE_TIERS,
+    styleProfiles: HARD_STYLE_PROFILES,
+    deMorganTargetRate: 0.95,
+    aPlusNotAbTargetRate: 0.05,
+    enforceDeMorganPriority: true,
+    enforceEasyComplexityGate: false,
+  },
+  easy: {
+    tiers: EASY_CHALLENGE_TIERS,
+    styleProfiles: EASY_STYLE_PROFILES,
+    deMorganTargetRate: 0.25,
+    aPlusNotAbTargetRate: 0.18,
+    enforceDeMorganPriority: false,
+    enforceEasyComplexityGate: true,
+  },
+};
+
+export function randomChallenge(options = {}) {
+  const difficultyId = options?.difficulty === "easy" ? "easy" : "hard";
+  const preset = DIFFICULTY_PRESETS[difficultyId];
+
   let bestCandidate = null;
   let bestScore = Number.POSITIVE_INFINITY;
-  const requireDeMorgan = Math.random() < DEMORGAN_TARGET_RATE;
-  const requireAPlusNotAB = Math.random() < A_PLUS_NOTAB_TARGET_RATE;
+  const requireDeMorgan = Math.random() < preset.deMorganTargetRate;
+  const requireAPlusNotAB = Math.random() < preset.aPlusNotAbTargetRate;
 
-  for (const tier of CHALLENGE_TIERS) {
+  for (const tier of preset.tiers) {
     for (let attempt = 0; attempt < tier.attempts; attempt += 1) {
-      const styleProfile = randomStyleProfile();
+      const styleProfile = randomStyleProfile(preset.styleProfiles);
       const variableCount = Math.random() < 0.85 ? 4 : 3;
       const variables = VARIABLE_POOL.slice(0, variableCount);
       const rowCount = 1 << variableCount;
@@ -176,7 +256,11 @@ export function randomChallenge() {
         continue;
       }
 
-      if (requireDeMorgan && !hasDeMorganPriority(candidate.initialAst)) {
+      if (requireDeMorgan && preset.enforceDeMorganPriority && !hasDeMorganPriority(candidate.initialAst)) {
+        continue;
+      }
+
+      if (preset.enforceEasyComplexityGate && !passesEasyComplexityGate(candidate.initialAst)) {
         continue;
       }
 
@@ -186,7 +270,8 @@ export function randomChallenge() {
 
       const score =
         challengePenalty(candidate, tier) +
-        stylePenalty(astStyleStats(candidate.initialAst), styleProfile);
+        stylePenalty(astStyleStats(candidate.initialAst), styleProfile) +
+        (preset.enforceEasyComplexityGate ? easyComplexityPenalty(candidate.initialAst) : 0);
 
       if (score < bestScore) {
         bestScore = score;
@@ -232,8 +317,8 @@ function challengePenalty(candidate, tier) {
   return penalty;
 }
 
-function randomStyleProfile() {
-  return STYLE_PROFILES[randomInt(0, STYLE_PROFILES.length - 1)];
+function randomStyleProfile(styleProfiles) {
+  return styleProfiles[randomInt(0, styleProfiles.length - 1)];
 }
 
 function hasGroupedNotExpression(ast) {
@@ -300,6 +385,42 @@ function hasDeMorganPriority(ast) {
 
   // Ensure De Morgan opportunities dominate the likely shortcut paths.
   return deMorganPressure >= shortcutPressure + 1;
+}
+
+function passesEasyComplexityGate(ast) {
+  const groupedNotCount = countGroupedNotExpressions(ast);
+  const styleStats = astStyleStats(ast);
+
+  if (groupedNotCount > 1) {
+    return false;
+  }
+
+  if (countDoubleNegationPairs(ast) > 0) {
+    return false;
+  }
+
+  if (styleStats.maxNotDepth > 2) {
+    return false;
+  }
+
+  if (countConjugateBypassPatterns(ast) > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function easyComplexityPenalty(ast) {
+  const groupedNotCount = countGroupedNotExpressions(ast);
+  const doubleNegationPairs = countDoubleNegationPairs(ast);
+  const styleStats = astStyleStats(ast);
+
+  let penalty = 0;
+  penalty += Math.max(0, groupedNotCount - 1) * 8;
+  penalty += doubleNegationPairs * 10;
+  penalty += Math.max(0, styleStats.maxNotDepth - 2) * 6;
+  penalty += countConjugateBypassPatterns(ast) * 8;
+  return penalty;
 }
 
 function countComplexGroupedNotExpressions(ast) {

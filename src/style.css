@@ -329,19 +329,25 @@ body[data-theme="light"] .mode-toggle .mode-divider {
 }
 
 .mode-toggle.mode-aqa-active .mode-ocr,
-.mode-toggle.mode-ocr-active .mode-aqa {
+.mode-toggle.mode-ocr-active .mode-aqa,
+.mode-toggle.mode-easy-active .mode-hard,
+.mode-toggle.mode-hard-active .mode-easy {
   color: color-mix(in srgb, var(--ink) 40%, transparent);
 }
 
 body[data-theme="light"] .mode-toggle.mode-aqa-active .mode-ocr,
 body[data-theme="light"] .mode-toggle.mode-ocr-active .mode-aqa,
+body[data-theme="light"] .mode-toggle.mode-easy-active .mode-hard,
+body[data-theme="light"] .mode-toggle.mode-hard-active .mode-easy,
 .mode-toggle.theme-dark-active .theme-light,
 .mode-toggle.theme-light-active .theme-dark {
   color: color-mix(in srgb, var(--text-soft) 72%, transparent);
 }
 
 .mode-toggle.theme-dark-active .theme-dark,
-.mode-toggle.theme-light-active .theme-light {
+.mode-toggle.theme-light-active .theme-light,
+.mode-toggle.mode-easy-active .mode-easy,
+.mode-toggle.mode-hard-active .mode-hard {
   color: var(--ink);
 }
 
