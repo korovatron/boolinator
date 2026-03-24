@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v114";
+const CACHE_NAME = "boolinator-v1.0.15";
 
 const LOCAL_ASSETS = [
   "./",
