@@ -88,9 +88,9 @@ root.innerHTML = `
           <span class="mode-aqa">AQA</span>
         </button>
         <button id="difficultyToggle" class="mode-toggle" type="button" aria-label="Toggle question difficulty" title="Switch generated question difficulty (Advanced or Standard)">
-          <span class="mode-hard">Advanced</span>
+          <span class="mode-hard"><span class="diff-label-full">Advanced</span><span class="diff-label-short">Adv</span></span>
           <span class="mode-divider">|</span>
-          <span class="mode-easy">Standard</span>
+          <span class="mode-easy"><span class="diff-label-full">Standard</span><span class="diff-label-short">Std</span></span>
         </button>
       </div>
     </header>

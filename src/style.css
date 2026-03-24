@@ -268,6 +268,10 @@ h2 {
   display: none;
 }
 
+.diff-label-short {
+  display: none;
+}
+
 .tile-head {
   display: flex;
   align-items: center;
@@ -1380,6 +1384,14 @@ body[data-theme="light"] .hint-expression {
     display: inline;
   }
 
+  .diff-label-full {
+    display: none;
+  }
+
+  .diff-label-short {
+    display: inline;
+  }
+
   #worksheetBtn {
     display: none;
   }
@@ -1681,13 +1693,19 @@ body[data-theme="light"] .tone-error {
     font-size: 1.08rem;
   }
 
-  .hero {
-    align-items: flex-start;
-  }
-
   .hero-logo {
     width: clamp(56px, 16vw, 88px);
     max-width: 26%;
+  }
+
+  .hero-controls {
+    gap: 5px;
+  }
+
+  .hero-controls .mode-toggle {
+    font-size: 0.7rem;
+    padding: 4px 7px;
+    min-width: 0;
   }
 }
 
