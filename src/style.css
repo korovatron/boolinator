@@ -84,6 +84,7 @@ body {
 
 #challengeField,
 #answerField,
+#primeTextField,
 #submissionHistory,
 #submissionHistory * {
   user-select: text;
@@ -609,6 +610,54 @@ body[data-theme="light"] #hintField::part(content) {
   outline: none !important;
 }
 
+.prime-text-field {
+  width: 100%;
+  height: 74px;
+  margin-bottom: 10px;
+  padding: 0 12px;
+  border-radius: 12px;
+  --answer-border-unfocused: color-mix(in srgb, var(--panel-border) 82%, #ffffff 18%);
+  --answer-border-focused: color-mix(in srgb, var(--brand) 68%, #ffffff 32%);
+  --answer-glow-unfocused: color-mix(in srgb, var(--panel-border) 34%, transparent);
+  --answer-glow-focused: color-mix(in srgb, var(--brand) 36%, transparent);
+  border: 1px solid var(--answer-border-unfocused);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface-elevated) 88%);
+  color: var(--ink);
+  font-family: "Times New Roman", "STIX Two Text", "Cambria Math", serif;
+  font-size: calc(1.2rem * var(--adaptive-scale, 1));
+  font-style: italic;
+  font-weight: 400;
+  line-height: 74px;
+  text-align: center;
+  outline: none;
+  box-shadow: 0 0 0 1px var(--answer-glow-unfocused);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.prime-text-field::selection {
+  background: color-mix(in srgb, var(--brand) 34%, transparent);
+  color: var(--ink);
+}
+
+.prime-text-field::-moz-selection {
+  background: color-mix(in srgb, var(--brand) 34%, transparent);
+  color: var(--ink);
+}
+
+.prime-text-field:focus,
+.prime-text-field:focus-visible {
+  border-color: var(--answer-border-focused);
+  box-shadow: 0 0 0 1px var(--answer-glow-focused);
+}
+
+body[data-theme="light"] .prime-text-field {
+  --answer-border-unfocused: rgba(16, 96, 146, 0.38);
+  --answer-glow-unfocused: rgba(16, 96, 146, 0.18);
+  --answer-border-focused: color-mix(in srgb, var(--brand) 58%, #ffffff 42%);
+  --answer-glow-focused: color-mix(in srgb, var(--brand) 28%, transparent);
+}
+
 #answerField:focus-within,
 #answerField:focus,
 #answerField:focus-visible {
@@ -922,6 +971,21 @@ body:not([data-theme="light"]) .ghost-btn {
   opacity: 0.52;
 }
 
+#aqaPrimeToggleBtn:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.35);
+  cursor: not-allowed;
+}
+
+#aqaPrimeToggleBtn:disabled:hover {
+  transform: none;
+}
+
+body[data-theme="light"] #aqaPrimeToggleBtn:disabled {
+  opacity: 0.5;
+  color: color-mix(in srgb, var(--ink) 60%, #ffffff 40%);
+}
+
 body:not([data-theme="light"]) .touch-unwrap-btn-active {
   border-color: #ffe66d;
   box-shadow: 0 0 0 1px rgba(255, 230, 109, 0.32);
@@ -1204,6 +1268,16 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
 .input-help-content code {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.88em;
+}
+
+.input-help-tip {
+  margin: 10px 0 4px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  border-left: 3px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .key-chip {

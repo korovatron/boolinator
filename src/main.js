@@ -116,6 +116,7 @@ root.innerHTML = `
       </div>
       <p id="notationHelp" class="notation-help"></p>
       <math-field id="answerField" default-mode="math"></math-field>
+      <input id="primeTextField" class="prime-text-field hidden" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Prime notation input" />
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
         <div class="actions-left">
@@ -123,6 +124,7 @@ root.innerHTML = `
           <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Delete the currently highlighted NOT gate in AQA mode.">DEL</button>
         </div>
         <div class="actions-right">
+          <button id="aqaPrimeToggleBtn" class="ghost-btn hidden" type="button" title="Toggle between overbar and prime notation for editing (AQA mode only)">Prime</button>
           <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
           <button id="hintBtn" class="ghost-btn" title="Show a hint for the next simplification move.">Hint</button>
           <button id="inputHelpBtn" class="ghost-btn" type="button" title="Open typing help for AQA and OCR symbols and key shortcuts.">Input Help</button>
@@ -194,6 +196,7 @@ const notationHelp = document.querySelector("#notationHelp");
 const challengeField = document.querySelector("#challengeField");
 const answerPanel = document.querySelector(".panel.answer");
 const answerField = document.querySelector("#answerField");
+const primeTextField = document.querySelector("#primeTextField");
 const touchKeypad = document.querySelector("#touchKeypad");
 const inputTip = document.querySelector("#inputTip");
 const feedbackSummary = document.querySelector("#feedbackSummary");
@@ -218,6 +221,7 @@ const closeWorksheetBtn = document.querySelector("#closeWorksheetBtn");
 const worksheetRenderRoot = document.querySelector("#worksheetRenderRoot");
 const touchUnwrapCycleBtn = document.querySelector("#touchUnwrapCycleBtn");
 const touchUnwrapConfirmBtn = document.querySelector("#touchUnwrapConfirmBtn");
+const aqaPrimeToggleBtn = document.querySelector("#aqaPrimeToggleBtn");
 let isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -231,6 +235,7 @@ const state = {
   equivalentSubmissions: [],
   pendingTemplateExit: false,
   worksheetGenerating: false,
+  aqaPrimeEditMode: false,
   unwrapCandidates: [],
   unwrapCandidateIndex: -1,
   unwrapTimeoutId: null,
@@ -416,7 +421,58 @@ function resetAppScrollToTop() {
 
 
 function hasMathLiveAnswerFocus() {
-  return Boolean(answerField?.hasFocus && answerField.hasFocus());
+  return Boolean(
+    (answerField?.hasFocus && answerField.hasFocus())
+    || (primeTextField && document.activeElement === primeTextField),
+  );
+}
+
+function isPrimeTextModeActive() {
+  return state.notationId === "aqa" && state.aqaPrimeEditMode;
+}
+
+function getActiveAnswerValue() {
+  if (isPrimeTextModeActive() && primeTextField) {
+    return normalizePrimeMarkers(primeTextField.value);
+  }
+  return getFieldValue(answerField);
+}
+
+function setPrimeTextSelection(start, end) {
+  if (!primeTextField) {
+    return;
+  }
+
+  const safeStart = Math.max(0, Math.min(Number(start) || 0, primeTextField.value.length));
+  const safeEnd = Math.max(safeStart, Math.min(Number(end) || safeStart, primeTextField.value.length));
+  primeTextField.setSelectionRange(safeStart, safeEnd);
+}
+
+function replacePrimeTextSelection(replacement, deleteDirection = "none") {
+  if (!primeTextField) {
+    return;
+  }
+
+  const current = primeTextField.value;
+  let start = primeTextField.selectionStart ?? current.length;
+  let end = primeTextField.selectionEnd ?? start;
+
+  if (start === end && deleteDirection === "backward") {
+    if (start <= 0) {
+      return;
+    }
+    start -= 1;
+  } else if (start === end && deleteDirection === "forward") {
+    if (end >= current.length) {
+      return;
+    }
+    end += 1;
+  }
+
+  const next = `${current.slice(0, start)}${replacement}${current.slice(end)}`;
+  primeTextField.value = next;
+  const caret = start + replacement.length;
+  setPrimeTextSelection(caret, caret);
 }
 
 function shouldUseCustomTouchKeypad() {
@@ -427,6 +483,7 @@ function forceAnswerFieldBlurReset() {
   const blurOnce = () => {
     try {
       answerField.blur();
+      primeTextField?.blur();
     } catch {
       // Ignore platform-specific blur failures.
     }
@@ -512,6 +569,7 @@ function setupMathFields() {
   answerField.mathVirtualKeyboardPolicy = "manual";
   answerField.setAttribute("math-virtual-keyboard-policy", "manual");
   answerField.setAttribute("virtual-keyboard-mode", "manual");
+  syncAnswerFieldInputMode();
 
   disableMathFieldContextMenu(challengeField);
   disableMathFieldContextMenu(answerField);
@@ -529,8 +587,32 @@ function setupMathFields() {
   applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
 }
 
+function syncAnswerFieldInputMode() {
+  const usePlainTextPrimeMode = isPrimeTextModeActive();
+
+  answerField.defaultMode = "math";
+  answerField.setAttribute("default-mode", "math");
+
+  if (usePlainTextPrimeMode) {
+    if (primeTextField && primeTextField.classList.contains("hidden")) {
+      const currentLatex = getFieldValue(answerField);
+      const primeText = overbarToSingleQuote(currentLatex);
+      primeTextField.value = normalizePrimeMarkers(primeText);
+    }
+    answerField.classList.add("hidden");
+    primeTextField?.classList.remove("hidden");
+  } else {
+    if (primeTextField && !primeTextField.classList.contains("hidden")) {
+      const overbarLatex = singleQuoteToOverbar(primeTextField.value);
+      setFieldValue(answerField, overbarLatex);
+    }
+    primeTextField?.classList.add("hidden");
+    answerField.classList.remove("hidden");
+  }
+}
+
 function renderTouchUnwrapActionButtons() {
-  const showButtons = shouldUseCustomTouchKeypad() && state.notationId === "aqa";
+  const showButtons = shouldUseCustomTouchKeypad() && state.notationId === "aqa" && !state.aqaPrimeEditMode;
   const active = isUnwrapModeActive();
 
   if (touchUnwrapCycleBtn) {
@@ -631,13 +713,70 @@ function runTouchKeypadAction(action) {
     cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
   }
 
-  try {
-    answerField.focus({ preventScroll: true });
-  } catch {
-    answerField.focus();
+  if (isPrimeTextModeActive() && primeTextField) {
+    try {
+      primeTextField.focus({ preventScroll: true });
+    } catch {
+      primeTextField.focus();
+    }
+  } else {
+    try {
+      answerField.focus({ preventScroll: true });
+    } catch {
+      answerField.focus();
+    }
   }
 
   const isLogic = state.notationId === "logic";
+
+  if (isPrimeTextModeActive() && primeTextField) {
+    switch (action) {
+      case "A":
+      case "B":
+      case "C":
+      case "D":
+        replacePrimeTextSelection(action, "none");
+        break;
+      case "ZERO":
+        replacePrimeTextSelection("0", "none");
+        break;
+      case "ONE":
+        replacePrimeTextSelection("1", "none");
+        break;
+      case "AND":
+        replacePrimeTextSelection(".", "none");
+        break;
+      case "OR":
+        replacePrimeTextSelection("+", "none");
+        break;
+      case "NOT":
+        replacePrimeTextSelection("'", "none");
+        break;
+      case "LPAREN":
+        replacePrimeTextSelection("(", "none");
+        break;
+      case "RPAREN":
+        replacePrimeTextSelection(")", "none");
+        break;
+      case "LEFT": {
+        const pos = primeTextField.selectionStart ?? 0;
+        setPrimeTextSelection(Math.max(0, pos - 1), Math.max(0, pos - 1));
+        break;
+      }
+      case "RIGHT": {
+        const pos = primeTextField.selectionEnd ?? 0;
+        const next = Math.min(primeTextField.value.length, pos + 1);
+        setPrimeTextSelection(next, next);
+        break;
+      }
+      case "BACKSPACE":
+        replacePrimeTextSelection("", "backward");
+        break;
+      default:
+        break;
+    }
+    return;
+  }
 
   switch (action) {
     case "A":
@@ -839,7 +978,10 @@ function bindEvents() {
   notationToggle.addEventListener("click", () => {
     cancelUnwrapMode();
     state.notationId = state.notationId === "aqa" ? "logic" : "aqa";
+    state.aqaPrimeEditMode = false; // Reset prime mode when switching notation
+    syncAnswerFieldInputMode();
     renderNotationToggle();
+    renderAqaPrimeToggleButton(); // Update prime toggle button visibility
     // Close keyboard on notation toggle
     if (answerField.hasFocus && answerField.hasFocus()) {
       answerField.blur();
@@ -868,6 +1010,7 @@ function bindEvents() {
   });
 
   const applyNotationMode = () => {
+    syncAnswerFieldInputMode();
     renderNotationMeta();
     renderChallengeExpression();
     renderSubmissionHistory();
@@ -878,6 +1021,7 @@ function bindEvents() {
     applyAnswerKeybindings();
     renderTouchKeypad();
     renderTouchUnwrapActionButtons();
+    renderAqaPrimeToggleButton();
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
@@ -889,6 +1033,10 @@ function bindEvents() {
     const resetExpression = latestResetExpression();
     setFieldValue(answerField, resetExpression);
 
+    if (isPrimeTextModeActive() && primeTextField) {
+      primeTextField.value = overbarToSingleQuote(resetExpression);
+    }
+
     if (state.equivalentSubmissions.length > 0) {
       setFeedback("Input reset to your latest equivalent step.", "info", []);
     } else {
@@ -896,9 +1044,19 @@ function bindEvents() {
     }
 
     try {
-      answerField.focus({ preventScroll: true });
+      if (isPrimeTextModeActive() && primeTextField) {
+        primeTextField.focus({ preventScroll: true });
+        const end = primeTextField.value.length;
+        setPrimeTextSelection(end, end);
+      } else {
+        answerField.focus({ preventScroll: true });
+      }
     } catch {
-      answerField.focus();
+      if (isPrimeTextModeActive() && primeTextField) {
+        primeTextField.focus();
+      } else {
+        answerField.focus();
+      }
     }
   });
 
@@ -913,6 +1071,10 @@ function bindEvents() {
     cancelUnwrapMode();
     hintArea.classList.remove("hidden");
     renderHint();
+  });
+
+  aqaPrimeToggleBtn?.addEventListener("click", () => {
+    toggleAqaPrimeMode();
   });
 
   touchUnwrapCycleBtn?.addEventListener("click", () => {
@@ -1002,6 +1164,48 @@ function bindEvents() {
     applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
   });
 
+  primeTextField?.addEventListener("focus", () => {
+    answerField.classList.add("answer-field-focused");
+  });
+
+  primeTextField?.addEventListener("blur", () => {
+    answerField.classList.remove("answer-field-focused");
+  });
+
+  primeTextField?.addEventListener("input", () => {
+    if (!state.suppressAnswerInputHandler) {
+      cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
+    }
+  });
+
+  primeTextField?.addEventListener("keydown", (event) => {
+    const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+    if (hasModifier || !isPrimeTextModeActive()) {
+      return;
+    }
+
+    if (event.key.length === 1) {
+      const normalized = normalizePrimeInputChar(event.key);
+      event.preventDefault();
+      if (normalized) {
+        replacePrimeTextSelection(normalized, "none");
+      }
+    }
+  });
+
+  primeTextField?.addEventListener("paste", (event) => {
+    if (!isPrimeTextModeActive()) {
+      return;
+    }
+
+    const pasted = event.clipboardData?.getData("text") ?? "";
+    const sanitized = sanitizePrimeTextInput(pasted);
+    event.preventDefault();
+    if (sanitized) {
+      replacePrimeTextSelection(sanitized, "none");
+    }
+  });
+
   const ensureAnswerTapFocus = () => {
     try {
       answerField.focus({ preventScroll: true });
@@ -1045,7 +1249,7 @@ function bindEvents() {
 
 function isEventInsideAnswerFieldOrKeyboard(event) {
   const target = event.target;
-  if (target === answerField) {
+  if (target === answerField || target === primeTextField) {
     return true;
   }
 
@@ -1057,7 +1261,7 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
   }
 
   const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-  if (path.includes(answerField)) {
+  if (path.includes(answerField) || (primeTextField && path.includes(primeTextField))) {
     return true;
   }
 
@@ -1076,7 +1280,7 @@ function isEventInsideAnswerFieldOrKeyboard(event) {
       return true;
     }
 
-    if (node.closest?.("#answerField, #touchKeypad, .ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
+    if (node.closest?.("#answerField, #primeTextField, #touchKeypad, .ML__keyboard, .ML__keyboard-container, .ML__virtual-keyboard, .MLK__plate, .MLK__backdrop")) {
       return true;
     }
   }
@@ -1164,6 +1368,16 @@ function handleAnswerFieldKeydown(event) {
   const isLogic = state.notationId === "logic";
   const hasSelection = fieldHasSelection(answerField);
 
+  if (state.aqaPrimeEditMode && state.notationId === "aqa" && (key === "Backspace" || key === "Delete")) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    deferAnswerMutation(() => {
+      replaceAnswerFieldSelectionRaw("", key === "Backspace" ? "backward" : "forward");
+    });
+    return;
+  }
+
   if (!isLogic && (key === "Backspace" || key === "Delete") && hasSelection) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -1181,12 +1395,25 @@ function handleAnswerFieldKeydown(event) {
   }
 
   // Smart LEFT/RIGHT navigation in AQA mode to skip phantom parentheses
-  if ((key === "ArrowLeft" || key === "ArrowRight") && state.notationId === "aqa") {
+  // Disabled in prime mode - use standard 1-character navigation instead
+  if ((key === "ArrowLeft" || key === "ArrowRight") && state.notationId === "aqa" && !state.aqaPrimeEditMode) {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
     deferAnswerMutation(() => {
       smartNavigateAnswerField(key === "ArrowLeft" ? "moveToPreviousChar" : "moveToNextChar");
+    });
+    return;
+  }
+
+  // Allow prime notation characters in AQA prime edit mode
+  if (state.aqaPrimeEditMode && state.notationId === "aqa" && (key === "'" || key === "-" || key === "_")) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    // Convert all to prime notation (')
+    deferAnswerMutation(() => {
+      replaceAnswerFieldSelectionRaw("'", "none");
     });
     return;
   }
@@ -1533,6 +1760,7 @@ function renderInputHelpModalContent() {
         <tr><td colspan="3">To remove NOT gates: press <span class="key-chip">&#92;</span> to cycle through NOTs, then <span class="key-chip">Enter</span> to remove the highlighted one. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout.</td></tr>
       </tbody>
     </table>
+    <p class="input-help-tip"><strong>Prime mode</strong> — click the <strong>Prime</strong> button above the answer field to switch to prime notation, which can make editing easier, particularly when working with NOT gates. In prime mode, NOT is written as a trailing apostrophe: <code>A'</code> means NOT&nbsp;A, <code>(A.B)'</code> means NOT of (A AND B), and <code>A''</code> means double-NOT A. Type <span class="key-chip">'</span>, <span class="key-chip">-</span>, or <span class="key-chip">_</span> to enter a prime. Expressions convert automatically when you toggle the mode.</p>
 
     <h4>OCR input</h4>
     <table class="input-help-table" aria-label="OCR typing guide">
@@ -2115,6 +2343,8 @@ function startNewChallenge(options = {}) {
   state.solved = false;
   state.bestEquivalent = null;
   state.equivalentSubmissions = [];
+  state.aqaPrimeEditMode = false; // Reset prime mode for new challenge
+  syncAnswerFieldInputMode();
 
   const startingExpression = formatAstForAnswerField(state.challenge.initialAst);
   setFieldValue(answerField, startingExpression);
@@ -2125,6 +2355,7 @@ function startNewChallenge(options = {}) {
   renderSubmissionHistory();
   renderGateMetrics();
   renderTip();
+  renderAqaPrimeToggleButton();
   resetAppScrollToTop();
 
     if (!isInitialLoad) {
@@ -2769,6 +3000,30 @@ function insertIntoAnswer(content) {
   setFieldValue(answerField, `${current}${content}`);
 }
 
+function replaceAnswerFieldSelectionRaw(replacement, deleteDirection = "none") {
+  const current = getFieldValue(answerField);
+  const snapshot = getAnswerSelectionSnapshot();
+  let start = snapshot.start;
+  let end = snapshot.end;
+
+  if (start === end && deleteDirection === "backward") {
+    if (start <= 0) {
+      return;
+    }
+    start -= 1;
+  } else if (start === end && deleteDirection === "forward") {
+    if (end >= current.length) {
+      return;
+    }
+    end += 1;
+  }
+
+  const next = `${current.slice(0, start)}${replacement}${current.slice(end)}`;
+  setFieldValue(answerField, next);
+  const caret = start + replacement.length;
+  setAnswerSelection(caret, caret);
+}
+
 function isUnwrapModeActive() {
   return state.unwrapCandidates.length > 0 && state.unwrapCandidateIndex >= 0;
 }
@@ -2878,6 +3133,7 @@ function cancelUnwrapMode(options = {}) {
     state.unwrapFeedbackSnapshot = null;
   }
 
+  renderAqaPrimeToggleButton();
   renderTouchUnwrapActionButtons();
 }
 
@@ -2906,6 +3162,7 @@ function renderUnwrapCandidate() {
   syncAnswerFieldUnwrapModeClass();
   renderAnswerFieldWithUnwrapHighlight(candidate);
   setUnwrapFeedback();
+  renderAqaPrimeToggleButton();
   renderTouchUnwrapActionButtons();
 }
 
@@ -3214,18 +3471,19 @@ function sanitizeLatex(latex) {
 }
 
 function checkAnswer() {
-  const raw = getFieldValue(answerField).trim();
+  const raw = getActiveAnswerValue().trim();
   if (!raw) {
     setFeedback("Enter an expression before checking.", "warn", []);
     return;
   }
-  const source = sanitizeLatex(raw);
-  if (source !== raw) setFieldValue(answerField, source);
+
+  const wasPrimeMode = state.aqaPrimeEditMode && state.notationId === "aqa";
+  const rawForParse = wasPrimeMode ? singleQuoteToOverbar(raw) : raw;
+  const source = sanitizeLatex(rawForParse);
 
   let ast;
   try {
     ast = parseBooleanExpression(source);
-    setFieldValue(answerField, formatAstForAnswerField(ast));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not parse expression.";
     setFeedback("There is an error in your expression.", "error", [
@@ -3258,6 +3516,13 @@ function checkAnswer() {
   const studentGates = gateCountAst(ast);
 
   if (equivalent) {
+    // Commit canonical overbar notation only for valid equivalent submissions.
+    setFieldValue(answerField, formatAstForAnswerField(ast));
+    if (wasPrimeMode) {
+      state.aqaPrimeEditMode = false;
+      syncAnswerFieldInputMode();
+      renderAqaPrimeToggleButton();
+    }
     addEquivalentSubmission(ast);
     if (state.bestEquivalent === null || studentGates < state.bestEquivalent) {
       state.bestEquivalent = studentGates;
@@ -3449,6 +3714,157 @@ function setMathFieldScale(field, scale) {
   const content = root.querySelector("[part='content']") || root.querySelector(".ML__content");
   if (content instanceof HTMLElement) {
     content.style.fontSize = `${clamped}em`;
+  }
+}
+
+/**
+ * Convert overbar notation to prime notation for AQA edit mode.
+ * E.g., \overline{A} -> A'
+ * E.g., \overline{\overline{B}} -> B''
+ */
+function normalizePrimeMarkers(latex) {
+  if (!latex) {
+    return "";
+  }
+
+  return latex
+    .replace(/\^\{\\prime\}/g, "'")
+    .replace(/\^\{\\doubleprime\}/g, "''")
+    .replace(/\^\{\\tripleprime\}/g, "'''")
+    .replace(/\^\{prime\}/g, "'")
+    .replace(/\^\{doubleprime\}/g, "''")
+    .replace(/\^\{tripleprime\}/g, "'''");
+}
+
+function normalizePrimeInputChar(char) {
+  if (!char) {
+    return "";
+  }
+
+  if (char === "-" || char === "_" || char === "`" || char === "′" || char === "’") {
+    return "'";
+  }
+
+  if (/[a-d]/.test(char)) {
+    return char.toUpperCase();
+  }
+
+  if (/[ABCD01.+()']/.test(char)) {
+    return char;
+  }
+
+  return "";
+}
+
+function sanitizePrimeTextInput(text) {
+  const normalized = normalizePrimeMarkers(String(text ?? ""));
+  let output = "";
+  for (const char of normalized) {
+    const mapped = normalizePrimeInputChar(char);
+    if (mapped) {
+      output += mapped;
+    }
+  }
+  return output;
+}
+
+function formatPrimeTextForEditing(text) {
+  return String(text ?? "")
+    .replace(/\s*\.\s*/g, ".")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function overbarToSingleQuote(latex) {
+  if (!latex) {
+    return "";
+  }
+
+  const source = normalizePrimeMarkers(latex);
+  try {
+    const ast = parseBooleanExpression(source);
+    return formatPrimeTextForEditing(astToNotationText(ast, "aqa"));
+  } catch {
+    // Preserve input if parsing fails while the student is still editing.
+    return formatPrimeTextForEditing(source);
+  }
+}
+
+/**
+ * Convert prime notation back to overbar for AQA submission.
+ * E.g., A' -> \overline{A}
+ * E.g., B'' -> \overline{\overline{B}}
+ */
+function singleQuoteToOverbar(text) {
+  if (!text) {
+    return "";
+  }
+
+  const source = normalizePrimeMarkers(text);
+  try {
+    const ast = parseBooleanExpression(source);
+    const latex = astToLatex(ast, "aqa");
+    return latex.replace(/\\,?\\cdot\\,?/g, ".");
+  } catch {
+    // Preserve input if parsing fails while the student is still editing.
+    return source;
+  }
+}
+
+/**
+ * Toggle between overbar and prime notation for AQA mode.
+ */
+function toggleAqaPrimeMode() {
+  if (state.notationId !== "aqa") {
+    return;
+  }
+
+  state.aqaPrimeEditMode = !state.aqaPrimeEditMode;
+  syncAnswerFieldInputMode();
+  renderAqaPrimeToggleButton();
+  renderTouchUnwrapActionButtons();
+
+  try {
+    if (isPrimeTextModeActive() && primeTextField) {
+      primeTextField.focus({ preventScroll: true });
+      const end = primeTextField.value.length;
+      setPrimeTextSelection(end, end);
+    } else {
+      answerField.focus({ preventScroll: true });
+    }
+  } catch {
+    if (isPrimeTextModeActive() && primeTextField) {
+      primeTextField.focus();
+    } else {
+      answerField.focus();
+    }
+  }
+}
+
+/**
+ * Update the appearance of the prime mode toggle button.
+ */
+function renderAqaPrimeToggleButton() {
+  if (!aqaPrimeToggleBtn) {
+    return;
+  }
+
+  const showButton = state.notationId === "aqa";
+  const disabled = showButton && isUnwrapModeActive();
+  aqaPrimeToggleBtn.classList.toggle("hidden", !showButton);
+  aqaPrimeToggleBtn.disabled = disabled;
+  aqaPrimeToggleBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+
+  if (showButton) {
+    if (disabled) {
+      aqaPrimeToggleBtn.setAttribute("title", "Finish or cancel NOT-cycle mode before switching notation.");
+    } else if (state.aqaPrimeEditMode) {
+      aqaPrimeToggleBtn.textContent = "Overbar";
+      aqaPrimeToggleBtn.setAttribute("title", "Switch back to overbar notation.");
+    } else {
+      aqaPrimeToggleBtn.textContent = "Prime";
+      aqaPrimeToggleBtn.setAttribute("title", "Switch to prime notation for easier editing.");
+    }
   }
 }
 
