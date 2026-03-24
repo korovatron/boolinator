@@ -672,10 +672,18 @@ function runTouchKeypadAction(action) {
       insertIntoAnswer(")");
       break;
     case "LEFT":
-      answerField.executeCommand?.("moveToPreviousChar");
+      if (state.notationId === "aqa") {
+        smartNavigateAnswerField("moveToPreviousChar");
+      } else {
+        answerField.executeCommand?.("moveToPreviousChar");
+      }
       break;
     case "RIGHT":
-      answerField.executeCommand?.("moveToNextChar");
+      if (state.notationId === "aqa") {
+        smartNavigateAnswerField("moveToNextChar");
+      } else {
+        answerField.executeCommand?.("moveToNextChar");
+      }
       break;
     case "BACKSPACE":
       answerField.executeCommand?.("deleteBackward");
