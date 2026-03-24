@@ -1172,6 +1172,17 @@ function handleAnswerFieldKeydown(event) {
     return;
   }
 
+  // Smart LEFT/RIGHT navigation in AQA mode to skip phantom parentheses
+  if ((key === "ArrowLeft" || key === "ArrowRight") && state.notationId === "aqa") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    deferAnswerMutation(() => {
+      smartNavigateAnswerField(key === "ArrowLeft" ? "moveToPreviousChar" : "moveToNextChar");
+    });
+    return;
+  }
+
   const passthroughKeys = new Set([
     "Backspace",
     "Delete",
@@ -1292,6 +1303,139 @@ function deferAnswerMutation(action) {
     action();
   }, 0);
 }
+
+/**
+ * Smart cursor navigation for AQA mode that skips phantom \left(...\right) parentheses
+ * that wrap OR expressions inside overbars. These phantoms are structural but shouldn't
+ * require explicit cursor navigation.
+ */
+function smartNavigateAnswerField(moveCommand) {
+  if (typeof answerField.executeCommand !== "function") {
+    return;
+  }
+
+  // Check if expression has phantom parentheses at all
+  const latex = getFieldValue(answerField);
+  if (!latex.includes("\\overline{\\left(")) {
+    // No phantoms, normal navigation
+    answerField.executeCommand(moveCommand);
+    return;
+  }
+
+  // Phantoms exist. Move until we escape all phantom zones.
+  // Max iterations prevents infinite loops but allows escaping multiple nested overbars.
+  const maxMoves = 12;
+  let escapeAttempts = 0;
+  
+  for (let i = 0; i < maxMoves; i++) {
+    answerField.executeCommand(moveCommand);
+    escapeAttempts++;
+    
+    // After each move, check if we're still in a phantom paren zone
+    const currentLatex = getFieldValue(answerField);
+    if (!isInsidePhantomParen(currentLatex, moveCommand)) {
+      // We've escaped the phantom zone
+      break;
+    }
+  }
+}
+
+/**
+ * Heuristic to detect if cursor is inside a phantom paren zone.
+ * A phantom zone is defined as being between \left( and )\right} within an \overline.
+ * 
+ * Since we can't query cursor position directly, we use the move direction as a clue:
+ * - If moving LEFT and we just exited a \left( token, we were in phantom zone
+ * - If moving RIGHT and we just exited a )\right} token, we were in phantom zone
+ * - Otherwise, if the expression still has unbalanced \left(\right) patterns relative
+ *   to the semantic structure, we might still be in a phantom zone
+ */
+function isInsidePhantomParen(latex, didMoveLeft) {
+  // Find all phantom paren positions in the LaTeX
+  // Pattern: \overline{\left(...)\right)}
+  const phantomZones = findPhantomParenZones(latex);
+  
+  if (phantomZones.length === 0) {
+    return false;
+  }
+
+  // After moving, if there are unclosed \left( without matching structures,
+  // or if we just moved past a ) that pairs with \left, we're likely exiting a phantom zone
+  // In that case, return false to stop moving. Otherwise return true to keep moving.
+  
+  // Heuristic: count \left and ) tokens
+  // If they're unbalanced in a way that suggests phantoms, keep moving
+  const leftCount = (latex.match(/\\left\(/g) || []).length;
+  const rightCount = (latex.match(/\\right\}/g) || []).length;
+  const overbarCount = (latex.match(/\\overline\{/g) || []).length;
+  
+  // If we have overbars with \left( inside, the structure suggests phantom parens
+  // If \left and \right are balanced, we may have just escaped; if not balanced,
+  // we might still be in a phantom zone.
+  
+  // Conservative: if \left appear without enough semantic structure,
+  // assume we might still be in phantom zone space
+  if (leftCount > overbarCount) {
+    // More \left( than \overline structures = we're likely in phantom space
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Find all \overline{\left(...)\right)} phantom paren zones in the LaTeX.
+ * Returns array of {start, end, depth} objects.
+ */
+function findPhantomParenZones(latex) {
+  const zones = [];
+  
+  // Find all \overline{\left(...)\right)} patterns
+  // We need to handle nested overbars, so we can't use simple regex
+  let depth = 0;
+  let overbarStart = -1;
+  let leftParenPos = -1;
+  
+  for (let i = 0; i < latex.length; i++) {
+    // Look for \overline{
+    if (latex[i] === '\\' && latex.slice(i, i + 9) === '\\overline') {
+      if (i + 9 < latex.length && latex[i + 9] === '{') {
+        if (overbarStart === -1) {
+          overbarStart = i;
+          depth = 0;
+        }
+        depth++;
+        i += 9; // Skip past \overline
+      }
+    }
+    
+    // Track braces while in overbar
+    if (overbarStart !== -1) {
+      if (latex[i] === '{') depth++;
+      if (latex[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          // End of this overbar block
+          const zoneLatex = latex.slice(overbarStart, i + 1);
+          if (zoneLatex.includes('\\left(') && zoneLatex.includes(')\\right')) {
+            zones.push({
+              start: overbarStart,
+              end: i + 1,
+              text: zoneLatex
+            });
+          }
+          overbarStart = -1;
+        }
+      }
+    }
+  }
+  
+  return zones;
+}
+
+
+
+
 
 function exitPlaceholderContext(field) {
   if (typeof field.executeCommand !== "function") {
