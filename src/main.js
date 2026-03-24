@@ -1305,137 +1305,153 @@ function deferAnswerMutation(action) {
 }
 
 /**
- * Smart cursor navigation for AQA mode that skips phantom \left(...\right) parentheses
- * that wrap OR expressions inside overbars. These phantoms are structural but shouldn't
- * require explicit cursor navigation.
+ * Smart cursor navigation for AQA mode: navigate the SEMANTIC structure, not the rendering.
  */
 function smartNavigateAnswerField(moveCommand) {
   if (typeof answerField.executeCommand !== "function") {
     return;
   }
 
-  // Check if expression has phantom parentheses at all
-  const latex = getFieldValue(answerField);
-  if (!latex.includes("\\overline{\\left(")) {
-    // No phantoms, normal navigation
+  if (typeof answerField.position !== "number") {
+    // Fallback for environments where MathLive offset API is unavailable.
     answerField.executeCommand(moveCommand);
     return;
   }
 
-  // Phantoms exist. Move until we escape all phantom zones.
-  // Max iterations prevents infinite loops but allows escaping multiple nested overbars.
-  const maxMoves = 12;
-  let escapeAttempts = 0;
-  
-  for (let i = 0; i < maxMoves; i++) {
+  const direction = moveCommand === "moveToPreviousChar" ? -1 : 1;
+  const lookup = buildSemanticOffsetLookup();
+  if (!lookup) {
     answerField.executeCommand(moveCommand);
-    escapeAttempts++;
-    
-    // After each move, check if we're still in a phantom paren zone
-    const currentLatex = getFieldValue(answerField);
-    if (!isInsidePhantomParen(currentLatex, moveCommand)) {
-      // We've escaped the phantom zone
-      break;
+    return;
+  }
+
+  const currentOffset = Math.max(0, Math.min(lookup.maxOffset, Number(answerField.position) || 0));
+  const currentSemanticOffset = lookup.semanticByOffset[currentOffset] ?? 0;
+  const targetSemanticOffset = Math.max(
+    0,
+    Math.min(lookup.maxSemanticOffset, currentSemanticOffset + direction),
+  );
+
+  if (targetSemanticOffset === currentSemanticOffset) {
+    return;
+  }
+
+  let targetOffset;
+  if (direction > 0) {
+    if (lookup.firstExact[targetSemanticOffset] !== -1) {
+      targetOffset = lookup.firstExact[targetSemanticOffset];
+    } else {
+      const nextReachable = lookup.firstOffsetAtOrAfter[targetSemanticOffset];
+      targetOffset = Math.max(currentOffset + 1, nextReachable - 1);
+    }
+  } else if (lookup.lastExact[targetSemanticOffset] !== -1) {
+    targetOffset = lookup.lastExact[targetSemanticOffset];
+  } else {
+    const prevReachable = lookup.lastOffsetAtOrBefore[targetSemanticOffset];
+    targetOffset = Math.min(currentOffset - 1, prevReachable + 1);
+  }
+
+  targetOffset = Math.max(0, Math.min(lookup.maxOffset, targetOffset));
+
+  if (typeof targetOffset === "number" && targetOffset !== currentOffset) {
+    answerField.position = targetOffset;
+  } else {
+    answerField.executeCommand(moveCommand);
+  }
+}
+
+function buildSemanticOffsetLookup() {
+  if (typeof answerField.getValue !== "function") {
+    return null;
+  }
+
+  const maxOffset = typeof answerField.lastOffset === "number"
+    ? answerField.lastOffset
+    : Math.max(0, Number(answerField.position) || 0);
+
+  const semanticByOffset = new Array(maxOffset + 1);
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    semanticByOffset[offset] = getSemanticOffsetAt(offset);
+  }
+
+  const maxSemanticOffset = semanticByOffset[maxOffset] || 0;
+  const firstExact = new Array(maxSemanticOffset + 1).fill(-1);
+  const lastExact = new Array(maxSemanticOffset + 1).fill(-1);
+
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    const semanticOffset = semanticByOffset[offset];
+    if (semanticOffset >= 0 && semanticOffset <= maxSemanticOffset) {
+      if (firstExact[semanticOffset] === -1) {
+        firstExact[semanticOffset] = offset;
+      }
+      lastExact[semanticOffset] = offset;
     }
   }
+
+  const firstOffsetAtOrAfter = new Array(maxSemanticOffset + 1).fill(maxOffset);
+  const lastOffsetAtOrBefore = new Array(maxSemanticOffset + 1).fill(0);
+
+  if (maxSemanticOffset >= 0) {
+    firstOffsetAtOrAfter[maxSemanticOffset] = firstExact[maxSemanticOffset] !== -1
+      ? firstExact[maxSemanticOffset]
+      : maxOffset;
+    for (let s = maxSemanticOffset - 1; s >= 0; s -= 1) {
+      firstOffsetAtOrAfter[s] = firstExact[s] !== -1
+        ? firstExact[s]
+        : firstOffsetAtOrAfter[s + 1];
+    }
+
+    lastOffsetAtOrBefore[0] = lastExact[0] !== -1 ? lastExact[0] : 0;
+    for (let s = 1; s <= maxSemanticOffset; s += 1) {
+      lastOffsetAtOrBefore[s] = lastExact[s] !== -1
+        ? lastExact[s]
+        : lastOffsetAtOrBefore[s - 1];
+    }
+  }
+
+  return {
+    maxOffset,
+    semanticByOffset,
+    maxSemanticOffset,
+    firstExact,
+    lastExact,
+    firstOffsetAtOrAfter,
+    lastOffsetAtOrBefore,
+  };
 }
 
 /**
- * Heuristic to detect if cursor is inside a phantom paren zone.
- * A phantom zone is defined as being between \left( and )\right} within an \overline.
- * 
- * Since we can't query cursor position directly, we use the move direction as a clue:
- * - If moving LEFT and we just exited a \left( token, we were in phantom zone
- * - If moving RIGHT and we just exited a )\right} token, we were in phantom zone
- * - Otherwise, if the expression still has unbalanced \left(\right) patterns relative
- *   to the semantic structure, we might still be in a phantom zone
+ * Project a LaTeX prefix to semantic navigation symbols.
+ * Keep only tokens the student conceptually navigates through:
+ * variables/constants, +, and .
+ * Parentheses are treated as structural grouping boundaries.
  */
-function isInsidePhantomParen(latex, didMoveLeft) {
-  // Find all phantom paren positions in the LaTeX
-  // Pattern: \overline{\left(...)\right)}
-  const phantomZones = findPhantomParenZones(latex);
-  
-  if (phantomZones.length === 0) {
-    return false;
-  }
-
-  // After moving, if there are unclosed \left( without matching structures,
-  // or if we just moved past a ) that pairs with \left, we're likely exiting a phantom zone
-  // In that case, return false to stop moving. Otherwise return true to keep moving.
-  
-  // Heuristic: count \left and ) tokens
-  // If they're unbalanced in a way that suggests phantoms, keep moving
-  const leftCount = (latex.match(/\\left\(/g) || []).length;
-  const rightCount = (latex.match(/\\right\}/g) || []).length;
-  const overbarCount = (latex.match(/\\overline\{/g) || []).length;
-  
-  // If we have overbars with \left( inside, the structure suggests phantom parens
-  // If \left and \right are balanced, we may have just escaped; if not balanced,
-  // we might still be in a phantom zone.
-  
-  // Conservative: if \left appear without enough semantic structure,
-  // assume we might still be in phantom zone space
-  if (leftCount > overbarCount) {
-    // More \left( than \overline structures = we're likely in phantom space
-    return true;
-  }
-
-  return false;
+function projectLatexToSemantic(latex) {
+  return String(latex)
+    // spacing + layout directives
+    .replace(/\\,/g, "")
+    .replace(/\\left/g, "")
+    .replace(/\\right/g, "")
+    // overbar wrapper command name
+    .replace(/\\overline/g, "")
+    // grouping braces are structural only
+    .replace(/[{}]/g, "")
+    // keep only semantic navigation symbols
+    .replace(/[^A-D01+.]/g, "");
 }
 
 /**
- * Find all \overline{\left(...)\right)} phantom paren zones in the LaTeX.
- * Returns array of {start, end, depth} objects.
+ * Semantic cursor offset up to a concrete MathLive offset.
  */
-function findPhantomParenZones(latex) {
-  const zones = [];
-  
-  // Find all \overline{\left(...)\right)} patterns
-  // We need to handle nested overbars, so we can't use simple regex
-  let depth = 0;
-  let overbarStart = -1;
-  let leftParenPos = -1;
-  
-  for (let i = 0; i < latex.length; i++) {
-    // Look for \overline{
-    if (latex[i] === '\\' && latex.slice(i, i + 9) === '\\overline') {
-      if (i + 9 < latex.length && latex[i + 9] === '{') {
-        if (overbarStart === -1) {
-          overbarStart = i;
-          depth = 0;
-        }
-        depth++;
-        i += 9; // Skip past \overline
-      }
-    }
-    
-    // Track braces while in overbar
-    if (overbarStart !== -1) {
-      if (latex[i] === '{') depth++;
-      if (latex[i] === '}') {
-        depth--;
-        if (depth === 0) {
-          // End of this overbar block
-          const zoneLatex = latex.slice(overbarStart, i + 1);
-          if (zoneLatex.includes('\\left(') && zoneLatex.includes(')\\right')) {
-            zones.push({
-              start: overbarStart,
-              end: i + 1,
-              text: zoneLatex
-            });
-          }
-          overbarStart = -1;
-        }
-      }
-    }
+function getSemanticOffsetAt(offset) {
+  if (typeof answerField.getValue !== "function") {
+    return 0;
   }
-  
-  return zones;
+
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const prefixLatex = answerField.getValue(0, safeOffset, "latex");
+  return projectLatexToSemantic(prefixLatex).length;
 }
-
-
-
-
 
 function exitPlaceholderContext(field) {
   if (typeof field.executeCommand !== "function") {
