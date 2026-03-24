@@ -319,6 +319,12 @@ h2 {
   cursor: pointer;
 }
 
+.mode-toggle > span:not(.mode-divider) {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
 .mode-toggle .mode-divider {
   color: color-mix(in srgb, var(--ink) 48%, transparent);
 }
@@ -1706,6 +1712,13 @@ body[data-theme="light"] .tone-error {
     font-size: 0.7rem;
     padding: 4px 7px;
     min-width: 0;
+    width: 100%;
+  }
+
+  .hero-controls .mode-toggle > span:not(.mode-divider) {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
   }
 }
 
