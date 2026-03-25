@@ -3849,7 +3849,7 @@ function renderAqaPrimeToggleButton() {
     return;
   }
 
-  const showButton = state.notationId === "aqa";
+  const showButton = state.notationId === "aqa" && !isTouchDevice;
   const disabled = showButton && isUnwrapModeActive();
   aqaPrimeToggleBtn.classList.toggle("hidden", !showButton);
   aqaPrimeToggleBtn.disabled = disabled;
