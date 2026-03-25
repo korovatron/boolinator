@@ -1456,23 +1456,15 @@ export function astToNotationText(ast, notationId) {
     }
 
     if (node.type === "not") {
+      const shouldWrap = !isRoot && shouldWrapAqaOverbarExpression(node.expr);
+      const child = render(node.expr, 0, false);
       if (notationId === "aqa") {
-        let primeCount = 1;
-        let baseNode = node.expr;
-        while (baseNode?.type === "not") {
-          primeCount += 1;
-          baseNode = baseNode.expr;
-        }
-
-        const shouldWrap = shouldWrapAqaPrimeExpression(baseNode);
-        const child = render(baseNode, 0, false);
         if (!shouldWrap) {
-          return `${child}${"'".repeat(primeCount)}`;
+          return `${child}'`;
         }
-        return `(${child})${"'".repeat(primeCount)}`;
+        return `(${child})'`;
       }
 
-      const child = render(node.expr, 0, false);
       const notSymbol = notationId === "code" ? "!" : "¬";
       return `${notSymbol}${child}`;
     }
@@ -1498,16 +1490,6 @@ function shouldWrapAqaOverbarExpression(node) {
   }
 
   return node.type === "or";
-}
-
-function shouldWrapAqaPrimeExpression(node) {
-  if (!node) {
-    return false;
-  }
-
-  // Prime notation needs explicit grouping for any composite NOT target.
-  // Without this, A.B' is parsed as A.(B') instead of (A.B)'.
-  return node.type !== "var" && node.type !== "const";
 }
 
 function astToMathJs(ast) {
