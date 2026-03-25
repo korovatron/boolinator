@@ -1510,17 +1510,17 @@ body[data-theme="light"] .hint-expression {
 @media (display-mode: fullscreen) {
   html {
     width: 100vw;
-    height: 100vh;
+    height: var(--actual-vh, 100vh);
   }
   
   body {
     width: 100vw;
-    height: 100vh;
+    height: var(--actual-vh, 100vh);
     overflow: hidden;
   }
   
   .shell {
-    height: 100vh;
+    min-height: var(--actual-vh, 100vh);
     overflow-y: auto;
     padding-left: max(12px, calc(var(--safe-area-left, 0px) + 0px));
     padding-right: max(12px, calc(var(--safe-area-right, 0px) + 0px));

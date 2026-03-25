@@ -15,6 +15,7 @@ const DEFAULT_WORKSHEET_TITLE = "Boolinator Worksheet";
 const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
 const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
 const VIEWPORT_SYNC_DELAYS_MS = [50, 150, 300, 500, 800, 1200];
+const VIEWPORT_RESIZE_THRESHOLD_PX = 30;
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
@@ -243,6 +244,7 @@ const state = {
 let _originalKeybindings = null;
 let lastOutsideBlurTimestamp = 0;
 let viewportSyncTimeoutIds = [];
+let lastKnownViewportHeight = 0;
 
 function isIOSDevice() {
   if (typeof navigator === "undefined") {
@@ -263,6 +265,7 @@ function isStandalonePwa() {
 
   return Boolean(
     window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
     || window.navigator.standalone,
   );
 }
@@ -292,25 +295,24 @@ function readSafeAreaInset(variableName) {
 }
 
 function computeActualViewportHeight() {
-  const visualViewportHeight = window.visualViewport?.height ?? 0;
-  const baseHeight = visualViewportHeight || window.innerHeight || document.documentElement.clientHeight || 0;
+  let viewportHeight = window.visualViewport?.height
+    ?? window.innerHeight
+    ?? document.documentElement.clientHeight
+    ?? 0;
 
   if (!isIOSDevice() || !isStandalonePwa() || !isPortraitOrientation()) {
-    return baseHeight;
+    return viewportHeight;
   }
 
   const safeAreaTop = readSafeAreaInset("--safe-area-top");
-  const safeAreaBottom = readSafeAreaInset("--safe-area-bottom");
-  const screenHeight = window.screen?.height ?? 0;
-  const viewportGap = screenHeight > 0 ? screenHeight - baseHeight : 0;
-  const suspiciousGapLowerBound = Math.max(18, safeAreaTop * 0.6);
-  const suspiciousGapUpperBound = Math.max(72, safeAreaTop + safeAreaBottom + 36);
+  const screenPortraitHeight = Math.max(window.screen?.height ?? 0, window.screen?.width ?? 0);
+  const difference = screenPortraitHeight - viewportHeight;
 
-  if (safeAreaTop > 0 && viewportGap >= suspiciousGapLowerBound && viewportGap <= suspiciousGapUpperBound) {
-    return baseHeight + safeAreaTop;
+  if (difference > 15 && safeAreaTop > 0) {
+    viewportHeight += safeAreaTop;
   }
 
-  return baseHeight;
+  return viewportHeight;
 }
 
 function applyActualViewportHeight() {
@@ -320,6 +322,14 @@ function applyActualViewportHeight() {
 
   const actualHeight = Math.max(0, Math.round(computeActualViewportHeight()));
   document.documentElement.style.setProperty("--actual-vh", `${actualHeight}px`);
+
+  if (lastKnownViewportHeight > 0 && Math.abs(actualHeight - lastKnownViewportHeight) > VIEWPORT_RESIZE_THRESHOLD_PX) {
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 50);
+  }
+
+  lastKnownViewportHeight = actualHeight;
 }
 
 function scheduleViewportHeightStabilization() {
@@ -344,16 +354,14 @@ function scheduleViewportHeightStabilization() {
 }
 
 function initializeViewportHeightManagement() {
-  applyActualViewportHeight();
   scheduleViewportHeightStabilization();
 
-  const refreshViewportHeight = () => {
-    scheduleViewportHeightStabilization();
-  };
-
   window.addEventListener("resize", applyActualViewportHeight);
-  window.addEventListener("orientationchange", refreshViewportHeight);
-  window.addEventListener("pageshow", refreshViewportHeight);
+  window.addEventListener("orientationchange", () => {
+    window.setTimeout(applyActualViewportHeight, 100);
+    window.setTimeout(applyActualViewportHeight, 300);
+  });
+  window.addEventListener("pageshow", scheduleViewportHeightStabilization);
 
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", applyActualViewportHeight);
@@ -361,7 +369,9 @@ function initializeViewportHeightManagement() {
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      refreshViewportHeight();
+      void document.body.offsetHeight;
+      window.setTimeout(applyActualViewportHeight, 50);
+      window.setTimeout(applyActualViewportHeight, 200);
     }
   });
 }
