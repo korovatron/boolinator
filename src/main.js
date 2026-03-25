@@ -119,8 +119,8 @@ root.innerHTML = `
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
         <div class="actions-left">
-          <button id="touchUnwrapCycleBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Highlight the next removable NOT gate in AQA mode."><span class="overbar-symbol">Cycle</span></button>
-          <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Delete the currently highlighted NOT gate in AQA mode.">DEL</button>
+          <button id="touchUnwrapCycleBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Highlight the next NOT toggle target in AQA mode."><span class="overbar-symbol">Cycle</span></button>
+          <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Apply NOT toggle to the currently highlighted target in AQA mode.">Apply</button>
         </div>
         <div class="actions-right">
           <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
@@ -559,7 +559,7 @@ function handleTouchUnwrapCycle() {
 
   if (!cycleUnwrapCandidate()) {
     setFeedback(
-      "This expression has no removable NOT candidates right now.",
+      "This expression has no NOT toggle targets right now.",
       "info",
       [],
     );
@@ -578,7 +578,7 @@ function handleTouchUnwrapConfirm() {
   }
 
   if (!confirmUnwrapCandidate()) {
-    setFeedback("Could not remove the selected NOT candidate.", "warn", []);
+    setFeedback("Could not toggle NOT on the selected target.", "warn", []);
   }
 }
 
@@ -1127,7 +1127,7 @@ function handleAnswerFieldKeydown(event) {
     event.stopPropagation();
     if (!cycleUnwrapCandidate()) {
       setFeedback(
-        "This expression has no removable NOT candidates right now.",
+        "This expression has no NOT toggle targets right now.",
         "info",
         [],
       );
@@ -1140,7 +1140,7 @@ function handleAnswerFieldKeydown(event) {
     event.stopImmediatePropagation();
     event.stopPropagation();
     if (!confirmUnwrapCandidate()) {
-      setFeedback("Could not remove the selected NOT candidate.", "warn", []);
+      setFeedback("Could not toggle NOT on the selected target.", "warn", []);
     }
     return;
   }
@@ -1530,7 +1530,7 @@ function renderInputHelpModalContent() {
         <tr><td><code>.</code></td><td>AND</td><td>Press <span class="key-chip">.</span> or <span class="key-chip">&gt;</span> (same key)</td></tr>
         <tr><td><code>+</code></td><td>OR</td><td>Press <span class="key-chip">+</span> or <span class="key-chip">=</span> (same key)</td></tr>
         <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span></td></tr>
-        <tr><td colspan="3">To remove NOT gates: press <span class="key-chip">&#92;</span> to cycle through NOTs, then <span class="key-chip">Enter</span> to remove the highlighted one. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout.</td></tr>
+        <tr><td colspan="3">To toggle NOT gates: press <span class="key-chip">&#92;</span> to cycle through existing NOTs and other groups, then press <span class="key-chip">Enter</span>. If the target already has NOT, it is removed; otherwise NOT is added. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout.</td></tr>
       </tbody>
     </table>
 
@@ -2829,6 +2829,8 @@ function confirmUnwrapCandidate() {
 
   if (candidate.kind === "latex-overbar") {
     nextLatex = `${source.slice(0, candidate.start)}${source.slice(candidate.innerStart, candidate.end)}${source.slice(candidate.end + 1)}`;
+  } else if (candidate.kind === "latex-wrap-target") {
+    nextLatex = `${source.slice(0, candidate.start)}\\overline{${source.slice(candidate.start, candidate.end + 1)}}${source.slice(candidate.end + 1)}`;
   } else {
     const ast = parseCurrentAnswerAst(source);
     if (!ast) {
@@ -2842,7 +2844,7 @@ function confirmUnwrapCandidate() {
 
   cancelUnwrapMode();
   setFieldValue(answerField, nextLatex);
-  setFeedback("Removed one NOT layer.", "info", []);
+  setFeedback(candidate.kind === "latex-overbar" ? "Removed one NOT layer." : "Added one NOT layer.", "info", []);
   renderTouchUnwrapActionButtons();
   return true;
 }
@@ -2935,7 +2937,9 @@ function restoreUnwrapFeedbackSnapshot() {
 function setUnwrapFeedback() {
   const candidateNumber = state.unwrapCandidateIndex + 1;
   const candidateCount = state.unwrapCandidates.length;
-  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">Remove NOT candidate ${candidateNumber} of ${candidateCount}. Press \\ to cycle, Enter to remove, Esc to cancel.</span>`;
+  const candidate = state.unwrapCandidates[state.unwrapCandidateIndex];
+  const action = candidate?.kind === "latex-overbar" ? "REMOVE NOT" : "ADD NOT";
+  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">NOT toggle candidate ${candidateNumber} of ${candidateCount} (${action}). Press \\ to cycle, Enter to apply, Esc to cancel.</span>`;
   feedbackSummary.className = `${toneClass("info")} feedback-unwrap-active`;
   feedbackDetails.innerHTML = "";
 }
@@ -3001,10 +3005,7 @@ function parseCurrentAnswerAst(source = sanitizeLatex(getFieldValue(answerField)
 
 function collectUnwrapCandidates(source) {
   if (state.notationId === "aqa") {
-    const latexCandidates = collectOverbarCandidates(source);
-    if (latexCandidates.length > 0) {
-      return latexCandidates;
-    }
+    return collectAqaToggleCandidates(source);
   }
 
   const ast = parseCurrentAnswerAst(source);
@@ -3037,6 +3038,315 @@ function collectUnwrapCandidates(source) {
 
   walk(ast, []);
   return candidates;
+}
+
+function collectAqaToggleCandidates(source) {
+  if (!source) {
+    return [];
+  }
+
+  const marker = "\\overline{";
+  const leftParenMarker = "\\left(";
+  const rightParenMarker = "\\right)";
+  const candidates = [];
+  const seenRanges = new Set();
+  const overbarInnerRanges = new Set();
+
+  const pushWrapTarget = (start, end) => {
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= source.length) {
+      return;
+    }
+
+    const innerKey = `${start}:${end}`;
+    if (overbarInnerRanges.has(innerKey)) {
+      return;
+    }
+
+    const key = innerKey;
+    if (seenRanges.has(key)) {
+      return;
+    }
+
+    seenRanges.add(key);
+    candidates.push({
+      kind: "latex-wrap-target",
+      start,
+      end,
+      latex: source.slice(start, end + 1),
+    });
+  };
+
+  function walk(start, end, suppressLeadingOverbar = false) {
+    if (start > end) {
+      return;
+    }
+
+    collectImplicitChainGroupCandidates(source, start, end, pushWrapTarget);
+    const firstTokenIndex = skipAqaFormattingForward(source, start, end);
+
+    for (let index = start; index <= end; index += 1) {
+      const char = source[index];
+
+      if (char === " " || char === "\t" || char === "\n") {
+        continue;
+      }
+
+      if (source.startsWith(marker, index)) {
+        const openBraceIndex = index + marker.length - 1;
+        const closeBraceIndex = findMatchingLatexBrace(source, openBraceIndex);
+        if (closeBraceIndex < 0 || closeBraceIndex > end) {
+          continue;
+        }
+
+        // Reserve this inner span so we don't also offer it as an "add NOT"
+        // target, which causes confusing duplicate/contradictory actions.
+        overbarInnerRanges.add(`${openBraceIndex + 1}:${closeBraceIndex - 1}`);
+
+        const isLeadingToken = index === firstTokenIndex;
+        if (!(suppressLeadingOverbar && isLeadingToken)) {
+          candidates.push({
+            kind: "latex-overbar",
+            start: index,
+            innerStart: openBraceIndex + 1,
+            end: closeBraceIndex,
+            latex: source.slice(index, closeBraceIndex + 1),
+          });
+        }
+
+        const innerStart = openBraceIndex + 1;
+        const innerEnd = closeBraceIndex - 1;
+        walk(innerStart, innerEnd, isRangeOnlyLeadingOverbar(source, innerStart, innerEnd));
+        index = closeBraceIndex;
+        continue;
+      }
+
+      if (source.startsWith(leftParenMarker, index)) {
+        const closeLeftRightIndex = findMatchingLatexRightParen(source, index);
+        if (closeLeftRightIndex < 0 || closeLeftRightIndex > end) {
+          continue;
+        }
+
+        pushWrapTarget(index, closeLeftRightIndex);
+        const innerStart = index + leftParenMarker.length;
+        const innerEnd = closeLeftRightIndex - rightParenMarker.length;
+        walk(innerStart, innerEnd, suppressLeadingOverbar);
+        index = closeLeftRightIndex;
+        continue;
+      }
+
+      if (char === "(") {
+        const closeParenIndex = findMatchingParen(source, index);
+        if (closeParenIndex < 0 || closeParenIndex > end) {
+          continue;
+        }
+
+        pushWrapTarget(index, closeParenIndex);
+        walk(index + 1, closeParenIndex - 1, suppressLeadingOverbar);
+        index = closeParenIndex;
+        continue;
+      }
+
+      if (/[A-Za-z0-9]/.test(char)) {
+        let atomEnd = index;
+        while (atomEnd + 1 <= end && /[A-Za-z0-9]/.test(source[atomEnd + 1])) {
+          atomEnd += 1;
+        }
+
+        pushWrapTarget(index, atomEnd);
+        index = atomEnd;
+      }
+    }
+  }
+
+  walk(0, source.length - 1, false);
+  return candidates;
+}
+
+function isRangeOnlyLeadingOverbar(source, start, end) {
+  const marker = "\\overline{";
+  const firstToken = skipAqaFormattingForward(source, start, end);
+  if (firstToken > end || !source.startsWith(marker, firstToken)) {
+    return false;
+  }
+
+  const closeBrace = findMatchingLatexBrace(source, firstToken + marker.length - 1);
+  if (closeBrace < 0 || closeBrace > end) {
+    return false;
+  }
+
+  const remainderStart = skipAqaFormattingForward(source, closeBrace + 1, end);
+  return remainderStart > end;
+}
+
+function collectImplicitChainGroupCandidates(source, start, end, pushWrapTarget) {
+  const orTerms = splitTopLevelTermsByOperator(source, start, end, "or");
+  pushContiguousTermGroups(source, orTerms, pushWrapTarget);
+
+  for (const term of orTerms) {
+    const andTerms = splitTopLevelTermsByOperator(source, term.start, term.end, "and");
+    pushContiguousTermGroups(source, andTerms, pushWrapTarget);
+  }
+}
+
+function pushContiguousTermGroups(source, terms, pushWrapTarget) {
+  if (!Array.isArray(terms) || terms.length < 2) {
+    return;
+  }
+
+  for (let left = 0; left < terms.length; left += 1) {
+    for (let right = left + 1; right < terms.length; right += 1) {
+      const start = terms[left].start;
+      const end = terms[right].end;
+
+      // Prefer explicit grouped targets like `(A+B)` or `\left(A+B\right)`
+      // over duplicate implicit inner spans like `A+B`.
+      if (isImmediatelyEnclosedByGroupDelimiters(source, start, end)) {
+        continue;
+      }
+
+      pushWrapTarget(start, end);
+    }
+  }
+}
+
+function isImmediatelyEnclosedByGroupDelimiters(source, start, end) {
+  if (start <= 0 || end >= source.length - 1) {
+    return false;
+  }
+
+  if (source[start - 1] === "(" && source[end + 1] === ")") {
+    return true;
+  }
+
+  const leftParenMarker = "\\left(";
+  const rightParenMarker = "\\right)";
+  const leftStart = start - leftParenMarker.length;
+
+  if (leftStart < 0) {
+    return false;
+  }
+
+  return source.startsWith(leftParenMarker, leftStart)
+    && source.startsWith(rightParenMarker, end + 1);
+}
+
+function splitTopLevelTermsByOperator(source, start, end, operatorKind) {
+  const terms = [];
+  let termStart = skipAqaFormattingForward(source, start, end);
+  let index = termStart;
+
+  while (index <= end) {
+    if (source.startsWith("\\overline{", index)) {
+      const closeBrace = findMatchingLatexBrace(source, index + "\\overline{".length - 1);
+      if (closeBrace < 0 || closeBrace > end) {
+        break;
+      }
+      index = closeBrace + 1;
+      continue;
+    }
+
+    if (source.startsWith("\\left(", index)) {
+      const closeLeftRight = findMatchingLatexRightParen(source, index);
+      if (closeLeftRight < 0 || closeLeftRight > end) {
+        break;
+      }
+      index = closeLeftRight + 1;
+      continue;
+    }
+
+    if (source[index] === "(") {
+      const closeParen = findMatchingParen(source, index);
+      if (closeParen < 0 || closeParen > end) {
+        break;
+      }
+      index = closeParen + 1;
+      continue;
+    }
+
+    const opLength = getTopLevelAqaOperatorLength(source, index, operatorKind);
+    if (opLength > 0) {
+      const termEnd = skipAqaFormattingBackward(source, index - 1, termStart);
+      if (termStart <= termEnd) {
+        terms.push({ start: termStart, end: termEnd });
+      }
+
+      index += opLength;
+      termStart = skipAqaFormattingForward(source, index, end);
+      index = termStart;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  const finalEnd = skipAqaFormattingBackward(source, end, termStart);
+  if (termStart <= finalEnd) {
+    terms.push({ start: termStart, end: finalEnd });
+  }
+
+  return terms;
+}
+
+function getTopLevelAqaOperatorLength(source, index, operatorKind) {
+  if (operatorKind === "or") {
+    if (source[index] === "+") {
+      return 1;
+    }
+    if (source.startsWith("\\,+\\,", index)) {
+      return "\\,+\\,".length;
+    }
+    if (source.startsWith("\\lor", index)) {
+      return "\\lor".length;
+    }
+    return 0;
+  }
+
+  if (source[index] === ".") {
+    return 1;
+  }
+  if (source.startsWith("\\cdot", index)) {
+    return "\\cdot".length;
+  }
+  if (source.startsWith("\\,\\cdot\\,", index)) {
+    return "\\,\\cdot\\,".length;
+  }
+  if (source.startsWith("\\land", index)) {
+    return "\\land".length;
+  }
+  return 0;
+}
+
+function skipAqaFormattingForward(source, index, end) {
+  let cursor = index;
+  while (cursor <= end) {
+    if (source[cursor] === " " || source[cursor] === "\t" || source[cursor] === "\n") {
+      cursor += 1;
+      continue;
+    }
+    if (source.startsWith("\\,", cursor)) {
+      cursor += 2;
+      continue;
+    }
+    break;
+  }
+  return cursor;
+}
+
+function skipAqaFormattingBackward(source, index, minIndex) {
+  let cursor = index;
+  while (cursor >= minIndex) {
+    const char = source[cursor];
+    if (char === " " || char === "\t" || char === "\n") {
+      cursor -= 1;
+      continue;
+    }
+    if (cursor >= minIndex + 1 && source[cursor] === "," && source[cursor - 1] === "\\") {
+      cursor -= 2;
+      continue;
+    }
+    break;
+  }
+  return cursor;
 }
 
 function collectOverbarCandidates(source) {
@@ -3073,13 +3383,20 @@ function collectOverbarCandidates(source) {
 }
 
 function renderAnswerFieldWithUnwrapHighlight(candidate) {
-  if (!candidate || candidate.kind !== "latex-overbar" || state.notationId !== "aqa") {
+  if (!candidate || state.notationId !== "aqa") {
+    setAnswerFieldLatexSilently(state.unwrapSource);
+    return;
+  }
+
+  const start = Number.isInteger(candidate.start) ? candidate.start : -1;
+  const end = Number.isInteger(candidate.end) ? candidate.end : -1;
+  if (start < 0 || end < start || end >= state.unwrapSource.length) {
     setAnswerFieldLatexSilently(state.unwrapSource);
     return;
   }
 
   const highlightColor = state.themeId === "light" ? "#d100b8" : "#ffeb3b";
-  const highlightedLatex = `${state.unwrapSource.slice(0, candidate.start)}\\textcolor{${highlightColor}}{${candidate.latex}}${state.unwrapSource.slice(candidate.end + 1)}`;
+  const highlightedLatex = `${state.unwrapSource.slice(0, start)}\\textcolor{${highlightColor}}{${candidate.latex ?? state.unwrapSource.slice(start, end + 1)}}${state.unwrapSource.slice(end + 1)}`;
   setAnswerFieldLatexSilently(highlightedLatex);
 }
 
@@ -3109,6 +3426,57 @@ function findMatchingLatexBrace(text, openBraceIndex) {
       if (depth === 0) {
         return i;
       }
+    }
+  }
+
+  return -1;
+}
+
+function findMatchingParen(text, openParenIndex) {
+  if (openParenIndex < 0 || text[openParenIndex] !== "(") {
+    return -1;
+  }
+
+  let depth = 0;
+  for (let i = openParenIndex; i < text.length; i += 1) {
+    if (text[i] === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (text[i] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function findMatchingLatexRightParen(text, leftMarkerIndex) {
+  const leftParenMarker = "\\left(";
+  const rightParenMarker = "\\right)";
+
+  if (leftMarkerIndex < 0 || !text.startsWith(leftParenMarker, leftMarkerIndex)) {
+    return -1;
+  }
+
+  let depth = 0;
+  for (let i = leftMarkerIndex; i < text.length; i += 1) {
+    if (text.startsWith(leftParenMarker, i)) {
+      depth += 1;
+      i += leftParenMarker.length - 1;
+      continue;
+    }
+
+    if (text.startsWith(rightParenMarker, i)) {
+      depth -= 1;
+      if (depth === 0) {
+        return i + rightParenMarker.length - 1;
+      }
+      i += rightParenMarker.length - 1;
     }
   }
 
