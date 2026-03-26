@@ -116,7 +116,10 @@ root.innerHTML = `
         <h2>Enter your next equivalent step</h2>
       </div>
       <p id="notationHelp" class="notation-help"></p>
-      <math-field id="answerField" default-mode="math"></math-field>
+      <div class="answer-field-wrapper">
+        <math-field id="answerField" default-mode="math"></math-field>
+        <div id="aqaHint" class="aqa-hint hidden">Press <kbd>&#92;</kbd> to toggle NOTs</div>
+      </div>
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
         <div class="actions-left">
@@ -219,6 +222,7 @@ const closeWorksheetBtn = document.querySelector("#closeWorksheetBtn");
 const worksheetRenderRoot = document.querySelector("#worksheetRenderRoot");
 const touchUnwrapCycleBtn = document.querySelector("#touchUnwrapCycleBtn");
 const touchUnwrapConfirmBtn = document.querySelector("#touchUnwrapConfirmBtn");
+const aqaHint = document.querySelector("#aqaHint");
 let isTouchDevice = detectTouchDevice();
 
 const state = {
@@ -535,6 +539,7 @@ function setupMathFields() {
   applyAnswerKeybindings();
   renderTouchKeypad();
   renderTouchUnwrapActionButtons();
+  renderAqaHint();
   bindTouchKeypadEvents();
   applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
 }
@@ -553,6 +558,14 @@ function renderTouchUnwrapActionButtons() {
     touchUnwrapConfirmBtn.classList.toggle("hidden", !showButtons);
     touchUnwrapConfirmBtn.classList.toggle("touch-unwrap-btn-active", active);
     touchUnwrapConfirmBtn.disabled = !showButtons || !active;
+  }
+}
+
+function renderAqaHint() {
+  const showHint = state.notationId === "aqa" && !isTouchDevice;
+
+  if (aqaHint) {
+    aqaHint.classList.toggle("hidden", !showHint);
   }
 }
 
@@ -888,6 +901,7 @@ function bindEvents() {
     applyAnswerKeybindings();
     renderTouchKeypad();
     renderTouchUnwrapActionButtons();
+    renderAqaHint();
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
@@ -2949,7 +2963,7 @@ function setUnwrapFeedback() {
   const candidateCount = state.unwrapCandidates.length;
   const candidate = state.unwrapCandidates[state.unwrapCandidateIndex];
   const action = candidate?.kind === "latex-overbar" ? "REMOVE NOT" : "ADD NOT";
-  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">NOT toggle candidate ${candidateNumber} of ${candidateCount} (${action}). Press \\ to cycle, Enter to apply, Esc to cancel.</span>`;
+  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">Press <kbd>&#92;</kbd> to cycle, <kbd>ENTER</kbd> to toggle NOT on/off, <kbd>ESC</kbd> to cancel</span>`;
   feedbackSummary.className = `${toneClass("info")} feedback-unwrap-active`;
   feedbackDetails.innerHTML = "";
 }

@@ -589,6 +589,46 @@ body[data-theme="light"] #hintField::part(content) {
   font-weight: 700;
 }
 
+.answer-field-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.aqa-hint {
+  position: absolute;
+  bottom: 16px;
+  right: 8px;
+  font-size: 0.75rem;
+  color: rgba(255, 235, 59, 0.85);
+  pointer-events: none;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: right;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.aqa-hint kbd {
+  display: inline-block;
+  padding: 2px 5px;
+  margin: 0 2px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  border-radius: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--ink);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="light"] .aqa-hint {
+  color: rgba(209, 0, 184, 0.92);
+}
+
+.aqa-hint.hidden {
+  display: none;
+}
+
 #answerField {
   --adaptive-scale: 1;
   min-height: 74px;
@@ -1262,6 +1302,20 @@ body:not([data-theme="light"]) .feedback-unwrap-active .feedback-unwrap-highligh
 
 body[data-theme="light"] .feedback-unwrap-active .feedback-unwrap-highlight {
   color: #c71686;
+}
+
+.feedback-unwrap-highlight kbd {
+  display: inline-block;
+  padding: 2px 5px;
+  margin: 0 2px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  border-radius: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85rem;
+  color: var(--ink);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
 }
 
 .feedback-details {
