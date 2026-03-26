@@ -856,6 +856,24 @@ body[data-theme="light"] #minimalGateCount {
   transform: translateY(-1px);
 }
 
+.ghost-btn:disabled {
+  cursor: not-allowed;
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  border-color: color-mix(in srgb, var(--panel-border) 56%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 86%, black 14%);
+  box-shadow: none;
+}
+
+.ghost-btn:disabled:hover {
+  transform: none;
+}
+
+body[data-theme="light"] .ghost-btn:disabled {
+  color: rgba(15, 47, 69, 0.48);
+  border-color: rgba(16, 96, 146, 0.24);
+  background: rgba(216, 238, 255, 0.45);
+}
+
 .primary-btn {
   background: linear-gradient(110deg, #00d8ff, #1aa8ff 54%, #4dffb8 100%);
   color: #042031;
@@ -925,6 +943,32 @@ body:not([data-theme="light"]) .ghost-btn {
   background: color-mix(in srgb, var(--surface-elevated) 78%, #0f3f70 22%);
   border-color: rgba(0, 216, 255, 0.42);
   box-shadow: 0 0 0 1px rgba(0, 216, 255, 0.2);
+}
+
+.progress-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55em;
+  height: 1.55em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2fbf71;
+  color: #062618;
+  font: 700 0.78rem/1 "IBM Plex Mono", monospace;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+body[data-theme="light"] .progress-badge {
+  background: #1e9e57;
+  color: #ffffff;
 }
 
 .actions {
@@ -1035,6 +1079,156 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
 
 .worksheet-dialog {
   width: min(640px, 100%);
+}
+
+.progress-dialog {
+  width: min(680px, 100%);
+}
+
+#progressSummary {
+  margin-bottom: 10px;
+}
+
+.progress-history-view {
+  display: grid;
+  gap: 8px;
+}
+
+.progress-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.progress-history-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.progress-history-index {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, #ffffff 30%);
+  color: color-mix(in srgb, var(--ink) 92%, var(--text-soft) 8%);
+  font: 700 0.82rem/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: 0.01em;
+}
+
+body[data-theme="light"] .progress-history-index {
+  border-color: rgba(16, 96, 146, 0.34);
+  background: color-mix(in srgb, var(--surface) 76%, #ffffff 24%);
+  color: color-mix(in srgb, var(--ink) 94%, #11314d 6%);
+}
+
+.progress-history-meta {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, #ffffff 30%);
+  font: 700 0.82rem/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--ink) 92%, var(--text-soft) 8%);
+}
+
+body[data-theme="light"] .progress-history-meta {
+  border-color: rgba(16, 96, 146, 0.34);
+  background: color-mix(in srgb, var(--surface) 76%, #ffffff 24%);
+  color: color-mix(in srgb, var(--ink) 94%, #11314d 6%);
+}
+
+.progress-history-difficulty {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: 700 0.8rem/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: 0.01em;
+}
+
+.progress-history-difficulty-standard {
+  background: rgba(59, 130, 246, 0.24);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #cfe4ff;
+}
+
+.progress-history-difficulty-advanced {
+  background: rgba(245, 158, 11, 0.24);
+  border-color: rgba(245, 158, 11, 0.52);
+  color: #ffe4bc;
+}
+
+.progress-history-difficulty-unknown {
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border-color: color-mix(in srgb, var(--panel-border) 70%, transparent);
+  color: var(--text-soft);
+}
+
+body[data-theme="light"] .progress-history-difficulty-standard {
+  background: rgba(96, 165, 250, 0.24);
+  border-color: rgba(37, 99, 235, 0.52);
+  color: #0f3e83;
+}
+
+body[data-theme="light"] .progress-history-difficulty-advanced {
+  background: rgba(251, 191, 36, 0.28);
+  border-color: rgba(180, 116, 13, 0.56);
+  color: #70460a;
+}
+
+body[data-theme="light"] .progress-history-difficulty-unknown {
+  background: rgba(216, 238, 255, 0.45);
+  border-color: rgba(16, 96, 146, 0.24);
+  color: rgba(15, 47, 69, 0.6);
+}
+
+#progressHistoryQuestionField,
+#progressHistoryAnswerField {
+  min-height: 72px;
+  padding: 0 8px;
+}
+
+#progressHistoryQuestionField::part(container),
+#progressHistoryAnswerField::part(container) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  height: 100%;
+}
+
+#progressHistoryQuestionField::part(content),
+#progressHistoryAnswerField::part(content) {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+  text-align: center;
+}
+
+#progressHistoryQuestionField::part(virtual-keyboard-toggle),
+#progressHistoryQuestionField::part(menu-toggle),
+#progressHistoryAnswerField::part(virtual-keyboard-toggle),
+#progressHistoryAnswerField::part(menu-toggle) {
+  display: none;
+}
+
+.progress-actions {
+  margin-top: 16px;
 }
 
 .worksheet-dialog .control-row + .control-row {

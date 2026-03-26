@@ -12,6 +12,8 @@ import {
 
 const WORKSHEET_QUESTION_COUNT = 10;
 const DEFAULT_WORKSHEET_TITLE = "Boolinator Worksheet";
+const SOLVED_HISTORY_STORAGE_KEY = "boolinator-solved-history-v1";
+const SOLVED_HISTORY_LIMIT = 100;
 const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
 const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
 const VIEWPORT_SYNC_DELAYS_MS = [50, 150, 300, 500, 800, 1200];
@@ -100,6 +102,7 @@ root.innerHTML = `
       <div class="tile-head">
         <h2><span class="challenge-title-full">Simplify the following Boolean expression</span><span class="challenge-title-short">Simplify</span></h2>
         <div class="tile-actions">
+          <button id="progressBtn" class="ghost-btn progress-btn" type="button" title="View solved challenge history and try past questions again.">Progress <span id="progressSolvedCount" class="progress-badge">0</span></button>
           <button id="worksheetBtn" class="ghost-btn" type="button" title="Generate a worksheet with 10 random questions and answers.">Generate Worksheet</button>
           <button id="newChallengeBtn" class="ghost-btn">New Question</button>
         </div>
@@ -188,6 +191,37 @@ root.innerHTML = `
     </div>
   </div>
 
+  <div id="progressModal" class="input-help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="progressTitle">
+    <div class="input-help-dialog progress-dialog" role="document">
+      <button id="closeProgressBtn" class="input-help-close" type="button" aria-label="Close progress history">X</button>
+      <h3 id="progressTitle">Solved Challenge History</h3>
+      <p id="progressSummary" class="worksheet-status" aria-live="polite"></p>
+      <div class="progress-history-view">
+        <div class="progress-history-head">
+          <p id="progressHistoryIndex" class="progress-history-index">0 / 0</p>
+          <div class="progress-history-badges">
+            <p id="progressHistoryMeta" class="progress-history-meta"></p>
+            <p id="progressHistoryDifficulty" class="progress-history-difficulty"></p>
+          </div>
+        </div>
+        <label for="progressHistoryQuestionField">Original question</label>
+        <math-field id="progressHistoryQuestionField" read-only></math-field>
+        <label for="progressHistoryAnswerField">Minimal answer submitted</label>
+        <math-field id="progressHistoryAnswerField" read-only></math-field>
+      </div>
+      <div class="actions progress-actions">
+        <div class="actions-left">
+          <button id="progressPrevBtn" class="ghost-btn" type="button" title="View the previous solved challenge in your history.">Previous</button>
+          <button id="progressNextBtn" class="ghost-btn" type="button" title="View the next solved challenge in your history.">Next</button>
+        </div>
+        <div class="actions-right">
+          <button id="progressClearBtn" class="ghost-btn" type="button" title="Delete all solved challenge history from this device.">Clear History</button>
+          <button id="progressTryAgainBtn" class="ghost-btn" type="button" title="Load this solved challenge as the current question so you can solve it again.">Try Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="worksheetRenderRoot" class="worksheet-render-root" aria-hidden="true"></div>
 `;
 
@@ -211,6 +245,20 @@ const inputHelpBtn = document.querySelector("#inputHelpBtn");
 const inputHelpModal = document.querySelector("#inputHelpModal");
 const inputHelpContent = document.querySelector("#inputHelpContent");
 const closeInputHelpBtn = document.querySelector("#closeInputHelpBtn");
+const progressBtn = document.querySelector("#progressBtn");
+const progressSolvedCount = document.querySelector("#progressSolvedCount");
+const progressModal = document.querySelector("#progressModal");
+const closeProgressBtn = document.querySelector("#closeProgressBtn");
+const progressSummary = document.querySelector("#progressSummary");
+const progressHistoryIndex = document.querySelector("#progressHistoryIndex");
+const progressHistoryMeta = document.querySelector("#progressHistoryMeta");
+const progressHistoryDifficulty = document.querySelector("#progressHistoryDifficulty");
+const progressHistoryQuestionField = document.querySelector("#progressHistoryQuestionField");
+const progressHistoryAnswerField = document.querySelector("#progressHistoryAnswerField");
+const progressPrevBtn = document.querySelector("#progressPrevBtn");
+const progressNextBtn = document.querySelector("#progressNextBtn");
+const progressClearBtn = document.querySelector("#progressClearBtn");
+const progressTryAgainBtn = document.querySelector("#progressTryAgainBtn");
 const worksheetBtn = document.querySelector("#worksheetBtn");
 const worksheetModal = document.querySelector("#worksheetModal");
 const worksheetTitleInput = document.querySelector("#worksheetTitleInput");
@@ -243,6 +291,8 @@ const state = {
   unwrapFeedbackSnapshot: null,
   unwrapSelectionSnapshot: null,
   suppressAnswerInputHandler: false,
+  solvedHistory: [],
+  progressHistoryIndex: -1,
 };
 
 let _originalKeybindings = null;
@@ -455,6 +505,7 @@ initializeTheme();
 initializeNotation();
 initializeDifficulty();
 initializeWorksheetDifficulty();
+initializeSolvedHistory();
 initializeViewportHeightManagement();
 setupMathFields();
 setupIOSRubberBandSuppression();
@@ -508,6 +559,14 @@ function initializeWorksheetDifficulty() {
   } catch {
     // LocalStorage can be unavailable; default to mixed.
   }
+}
+
+function initializeSolvedHistory() {
+  state.solvedHistory = loadSolvedHistoryFromStorage();
+  state.progressHistoryIndex = state.solvedHistory.length > 0
+    ? state.solvedHistory.length - 1
+    : -1;
+  renderProgressBadge();
 }
 
 function applyTheme() {
@@ -902,6 +961,7 @@ function bindEvents() {
     renderTouchKeypad();
     renderTouchUnwrapActionButtons();
     renderAqaHint();
+    renderProgressModalState();
   };
 
   document.querySelector("#newChallengeBtn").addEventListener("click", () => {
@@ -949,6 +1009,68 @@ function bindEvents() {
 
   inputHelpBtn?.addEventListener("click", () => {
     openInputHelpModal();
+  });
+
+  progressBtn?.addEventListener("click", () => {
+    openProgressModal();
+  });
+
+  closeProgressBtn?.addEventListener("click", () => {
+    closeProgressModal();
+  });
+
+  progressModal?.addEventListener("click", (event) => {
+    if (event.target === progressModal) {
+      closeProgressModal();
+    }
+  });
+
+  progressPrevBtn?.addEventListener("click", () => {
+    if (state.solvedHistory.length <= 1 || state.progressHistoryIndex <= 0) {
+      return;
+    }
+
+    state.progressHistoryIndex -= 1;
+    renderProgressModalState();
+  });
+
+  progressNextBtn?.addEventListener("click", () => {
+    if (
+      state.solvedHistory.length <= 1
+      || state.progressHistoryIndex >= state.solvedHistory.length - 1
+    ) {
+      return;
+    }
+
+    state.progressHistoryIndex += 1;
+    renderProgressModalState();
+  });
+
+  progressClearBtn?.addEventListener("click", () => {
+    if (state.solvedHistory.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm("Clear your solved challenge history?");
+    if (!confirmed) {
+      return;
+    }
+
+    state.solvedHistory = [];
+    state.progressHistoryIndex = -1;
+    persistSolvedHistory();
+    renderProgressBadge();
+    renderProgressModalState();
+  });
+
+  progressTryAgainBtn?.addEventListener("click", () => {
+    const entry = getActiveSolvedHistoryEntry();
+    if (!entry) {
+      return;
+    }
+
+    loadSolvedChallenge(entry);
+    closeProgressModal();
   });
 
   closeInputHelpBtn?.addEventListener("click", () => {
@@ -1032,6 +1154,11 @@ function bindEvents() {
 
     if (worksheetModal && !worksheetModal.classList.contains("hidden")) {
       closeWorksheetModal();
+      return;
+    }
+
+    if (progressModal && !progressModal.classList.contains("hidden")) {
+      closeProgressModal();
       return;
     }
 
@@ -1188,7 +1315,8 @@ function isEditableTypingTarget(target) {
 function isAnyModalOpen() {
   return Boolean(
     (inputHelpModal && !inputHelpModal.classList.contains("hidden"))
-    || (worksheetModal && !worksheetModal.classList.contains("hidden")),
+    || (worksheetModal && !worksheetModal.classList.contains("hidden"))
+    || (progressModal && !progressModal.classList.contains("hidden")),
   );
 }
 
@@ -1629,6 +1757,7 @@ function openInputHelpModal() {
   }
 
   closeWorksheetModal({ preserveStatus: true });
+  closeProgressModal();
   renderInputHelpModalContent();
   inputHelpModal.classList.remove("hidden");
   syncModalBodyState();
@@ -1649,6 +1778,7 @@ function openWorksheetModal() {
   }
 
   closeInputHelpModal();
+  closeProgressModal();
   if (worksheetTitleInput) {
     worksheetTitleInput.value = normalizeWorksheetTitle(worksheetTitleInput.value);
   }
@@ -1676,11 +1806,255 @@ function closeWorksheetModal(options = {}) {
   syncModalBodyState();
 }
 
+function openProgressModal() {
+  if (!progressModal) {
+    return;
+  }
+
+  closeInputHelpModal();
+  closeWorksheetModal({ preserveStatus: true });
+  renderProgressModalState();
+  progressModal.classList.remove("hidden");
+  syncModalBodyState();
+}
+
+function closeProgressModal() {
+  if (!progressModal) {
+    return;
+  }
+
+  progressModal.classList.add("hidden");
+  syncModalBodyState();
+}
+
 function syncModalBodyState() {
-  const hasOpenModal = [inputHelpModal, worksheetModal].some(
+  const hasOpenModal = [inputHelpModal, worksheetModal, progressModal].some(
     (modal) => modal && !modal.classList.contains("hidden"),
   );
   document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
+function renderProgressBadge() {
+  if (!progressSolvedCount) {
+    return;
+  }
+
+  progressSolvedCount.textContent = String(state.solvedHistory.length);
+}
+
+function deepClone(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadSolvedHistoryFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(SOLVED_HISTORY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((entry) => {
+        const challenge = entry?.challenge;
+        return Boolean(
+          entry
+          && typeof entry.id === "string"
+          && typeof entry.solvedAt === "string"
+          && challenge
+          && challenge.initialAst
+          && Array.isArray(challenge.variables)
+          && Array.isArray(challenge.outputs)
+          && entry.finalAst,
+        );
+      })
+      .map((entry) => ({
+        ...entry,
+        difficultyId: entry.difficultyId === "easy" || entry.difficultyId === "hard"
+          ? entry.difficultyId
+          : null,
+      }))
+      .slice(-SOLVED_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function persistSolvedHistory() {
+  try {
+    window.localStorage.setItem(SOLVED_HISTORY_STORAGE_KEY, JSON.stringify(state.solvedHistory));
+  } catch {
+    // Ignore storage write failures.
+  }
+}
+
+function solvedChallengeIdentity(challenge) {
+  try {
+    return JSON.stringify(challenge?.initialAst ?? null);
+  } catch {
+    return "";
+  }
+}
+
+function recordSolvedChallenge(finalAst) {
+  if (!state.challenge || !finalAst) {
+    return;
+  }
+
+  const challengeSnapshot = {
+    initialAst: cloneBooleanAst(state.challenge.initialAst),
+    minimalAst: cloneBooleanAst(state.challenge.minimalAst),
+    minimalGateCount: Number(state.challenge.minimalGateCount),
+    initialGateCount: Number(state.challenge.initialGateCount),
+    variables: [...state.challenge.variables],
+    outputs: deepClone(state.challenge.outputs),
+  };
+
+  const identity = solvedChallengeIdentity(challengeSnapshot);
+  const nextEntries = state.solvedHistory
+    .filter((entry) => solvedChallengeIdentity(entry.challenge) !== identity)
+    .slice(-(SOLVED_HISTORY_LIMIT - 1));
+
+  nextEntries.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    solvedAt: new Date().toISOString(),
+    difficultyId: state.difficultyId,
+    challenge: challengeSnapshot,
+    finalAst: cloneBooleanAst(finalAst),
+    finalGateCount: gateCountAst(finalAst),
+  });
+
+  state.solvedHistory = nextEntries;
+  state.progressHistoryIndex = state.solvedHistory.length - 1;
+  persistSolvedHistory();
+  renderProgressBadge();
+  renderProgressModalState();
+}
+
+function getActiveSolvedHistoryEntry() {
+  if (state.solvedHistory.length === 0) {
+    return null;
+  }
+
+  const index = Math.max(0, Math.min(state.progressHistoryIndex, state.solvedHistory.length - 1));
+  return state.solvedHistory[index] ?? null;
+}
+
+function renderProgressModalState() {
+  if (!progressSummary || !progressHistoryIndex || !progressHistoryMeta || !progressHistoryDifficulty || !progressHistoryQuestionField || !progressHistoryAnswerField) {
+    return;
+  }
+
+  const total = state.solvedHistory.length;
+  const standardCount = state.solvedHistory.filter((entry) => entry.difficultyId === "easy").length;
+  const advancedCount = state.solvedHistory.filter((entry) => entry.difficultyId === "hard").length;
+
+  progressSummary.textContent = total === 0
+    ? "No solved challenges yet."
+    : `Solved challenges: ${total} total, ${standardCount} standard, ${advancedCount} advanced`;
+
+  if (total === 0) {
+    progressHistoryIndex.textContent = "0 / 0";
+    progressHistoryMeta.textContent = "Solve a challenge at minimal gate count to add it here.";
+    progressHistoryDifficulty.textContent = "";
+    progressHistoryDifficulty.className = "progress-history-difficulty hidden";
+    setFieldValue(progressHistoryQuestionField, "");
+    setFieldValue(progressHistoryAnswerField, "");
+    progressPrevBtn.disabled = true;
+    progressNextBtn.disabled = true;
+    progressTryAgainBtn.disabled = true;
+    progressClearBtn.disabled = true;
+    return;
+  }
+
+  if (state.progressHistoryIndex < 0 || state.progressHistoryIndex >= total) {
+    state.progressHistoryIndex = total - 1;
+  }
+
+  const entry = state.solvedHistory[state.progressHistoryIndex];
+  const solvedDate = new Date(entry.solvedAt);
+  const solvedLabel = Number.isNaN(solvedDate.getTime())
+    ? "Unknown date"
+    : solvedDate.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+  progressHistoryIndex.textContent = `${state.progressHistoryIndex + 1} / ${total}`;
+  progressHistoryMeta.textContent = `Solved ${solvedLabel}`;
+  if (entry.difficultyId === "easy") {
+    progressHistoryDifficulty.textContent = "Standard";
+    progressHistoryDifficulty.className = "progress-history-difficulty progress-history-difficulty-standard";
+  } else if (entry.difficultyId === "hard") {
+    progressHistoryDifficulty.textContent = "Advanced";
+    progressHistoryDifficulty.className = "progress-history-difficulty progress-history-difficulty-advanced";
+  } else {
+    progressHistoryDifficulty.textContent = "Unknown";
+    progressHistoryDifficulty.className = "progress-history-difficulty progress-history-difficulty-unknown";
+  }
+
+  const challenge = entry.challenge;
+  const questionLatex = formatAstForAnswerField(challenge.initialAst);
+  const answerLatex = formatAstForAnswerField(entry.finalAst);
+  renderReadonlyMathFieldLatex(progressHistoryQuestionField, questionLatex);
+  renderReadonlyMathFieldLatex(progressHistoryAnswerField, answerLatex);
+  disableMathFieldContextMenu(progressHistoryQuestionField);
+  disableMathFieldContextMenu(progressHistoryAnswerField);
+  makeReadonlyMathFieldUnfocusable(progressHistoryQuestionField);
+  makeReadonlyMathFieldUnfocusable(progressHistoryAnswerField);
+
+  progressPrevBtn.disabled = total <= 1 || state.progressHistoryIndex <= 0;
+  progressNextBtn.disabled = total <= 1 || state.progressHistoryIndex >= total - 1;
+  progressTryAgainBtn.disabled = false;
+  progressClearBtn.disabled = false;
+}
+
+function loadSolvedChallenge(entry) {
+  if (!entry?.challenge) {
+    return;
+  }
+
+  cancelUnwrapMode();
+  const challenge = entry.challenge;
+  state.challenge = {
+    initialAst: cloneBooleanAst(challenge.initialAst),
+    minimalAst: cloneBooleanAst(challenge.minimalAst),
+    minimalGateCount: Number(challenge.minimalGateCount),
+    initialGateCount: Number(challenge.initialGateCount),
+    variables: [...challenge.variables],
+    outputs: deepClone(challenge.outputs),
+  };
+
+  state.solved = false;
+  state.bestEquivalent = null;
+  state.equivalentSubmissions = [];
+
+  const startingExpression = formatAstForAnswerField(state.challenge.initialAst);
+  setFieldValue(answerField, startingExpression);
+  hintArea.classList.add("hidden");
+
+  renderNotationMeta();
+  renderChallengeExpression();
+  renderSubmissionHistory();
+  renderGateMetrics();
+  renderTip();
+  resetAppScrollToTop();
+  setFeedback("Loaded a solved challenge from your history. Try to solve it again.", "info", []);
+
+  if (!isTouchDevice) {
+    requestAnimationFrame(() => {
+      answerField.focus({ preventScroll: true });
+    });
+  }
 }
 
 function renderWorksheetModalState() {
@@ -3715,6 +4089,7 @@ function checkAnswer() {
 
   if (studentGates <= state.challenge.minimalGateCount) {
     state.solved = true;
+    recordSolvedChallenge(ast);
     setFeedback("Equivalent and minimal. You solved this challenge.", "success", []);
     hintArea.classList.remove("hidden");
     renderHint();
