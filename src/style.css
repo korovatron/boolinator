@@ -1200,11 +1200,16 @@ body[data-theme="light"] .progress-history-difficulty-unknown {
 #progressHistoryQuestionField,
 #progressHistoryAnswerField {
   min-height: 72px;
+  padding: 8px;
+}
+
+body:not(.is-ios-device) #progressHistoryQuestionField,
+body:not(.is-ios-device) #progressHistoryAnswerField {
   padding: 0 8px;
 }
 
-#progressHistoryQuestionField::part(container),
-#progressHistoryAnswerField::part(container) {
+body:not(.is-ios-device) #progressHistoryQuestionField::part(container),
+body:not(.is-ios-device) #progressHistoryAnswerField::part(container) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1212,8 +1217,8 @@ body[data-theme="light"] .progress-history-difficulty-unknown {
   height: 100%;
 }
 
-#progressHistoryQuestionField::part(content),
-#progressHistoryAnswerField::part(content) {
+body:not(.is-ios-device) #progressHistoryQuestionField::part(content),
+body:not(.is-ios-device) #progressHistoryAnswerField::part(content) {
   display: block;
   width: fit-content;
   margin-inline: auto;

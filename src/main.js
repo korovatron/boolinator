@@ -506,6 +506,7 @@ initializeNotation();
 initializeDifficulty();
 initializeWorksheetDifficulty();
 initializeSolvedHistory();
+document.body.classList.toggle("is-ios-device", isIOSDevice());
 initializeViewportHeightManagement();
 setupMathFields();
 setupIOSRubberBandSuppression();
@@ -798,6 +799,10 @@ function makeReadonlyMathFieldUnfocusable(field) {
     return;
   }
 
+  if (field.dataset.readonlyUnfocusableBound === "1") {
+    return;
+  }
+
   // Keep readonly MathLive fields out of tab/focus flow on touch devices and PWA.
   field.setAttribute("tabindex", "-1");
 
@@ -812,6 +817,8 @@ function makeReadonlyMathFieldUnfocusable(field) {
   field.addEventListener("pointerdown", (event) => {
     event.preventDefault();
   }, true);
+
+  field.dataset.readonlyUnfocusableBound = "1";
 }
 
 function disableMathFieldContextMenu(field) {
@@ -2005,8 +2012,8 @@ function renderProgressModalState() {
   const challenge = entry.challenge;
   const questionLatex = formatAstForAnswerField(challenge.initialAst);
   const answerLatex = formatAstForAnswerField(entry.finalAst);
-  renderReadonlyMathFieldLatex(progressHistoryQuestionField, questionLatex);
-  renderReadonlyMathFieldLatex(progressHistoryAnswerField, answerLatex);
+  renderStableReadonlyMathFieldLatex(progressHistoryQuestionField, questionLatex);
+  renderStableReadonlyMathFieldLatex(progressHistoryAnswerField, answerLatex);
   disableMathFieldContextMenu(progressHistoryQuestionField);
   disableMathFieldContextMenu(progressHistoryAnswerField);
   makeReadonlyMathFieldUnfocusable(progressHistoryQuestionField);
@@ -2697,6 +2704,31 @@ function renderReadonlyMathFieldLatex(field, latex) {
       field.classList.contains("submission-item") ? "history" : "generic",
     );
   });
+}
+
+function renderStableReadonlyMathFieldLatex(field, latex) {
+  if (!field) {
+    return;
+  }
+
+  if (field.dataset.lastRenderedLatex === latex) {
+    return;
+  }
+
+  field.dataset.lastRenderedLatex = latex;
+
+  try {
+    if (typeof field.setValue === "function") {
+      field.setValue(latex);
+    } else {
+      field.value = latex;
+      field.setAttribute("value", latex);
+    }
+  } catch {
+    // Ignore occasional early lifecycle write failures on iOS.
+  }
+
+  applyAdaptiveMathFieldScale(field, latex, "generic");
 }
 
 function retranslateAnswerField() {
