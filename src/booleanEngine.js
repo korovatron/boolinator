@@ -1331,7 +1331,6 @@ export function evaluateAgainstTruthTable(ast, variables, expectedOutputs) {
 }
 
 export function gateCountAst(ast) {
-  const negatedVariables = new Set();
   let gateCount = 0;
 
   function walk(node) {
@@ -1344,11 +1343,7 @@ export function gateCountAst(ast) {
     }
 
     if (node.type === "not") {
-      if (node.expr.type === "var") {
-        negatedVariables.add(node.expr.name);
-      } else {
-        gateCount += 1;
-      }
+      gateCount += 1;
       walk(node.expr);
       return;
     }
@@ -1363,7 +1358,7 @@ export function gateCountAst(ast) {
   }
 
   walk(ast);
-  return gateCount + negatedVariables.size;
+  return gateCount;
 }
 
 export function extractVariables(ast) {

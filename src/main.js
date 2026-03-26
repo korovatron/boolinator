@@ -109,6 +109,7 @@ root.innerHTML = `
       </div>
       <math-field id="challengeField" read-only></math-field>
       <div class="metrics">
+        <span id="initialGateCount"></span>
         <span id="minimalGateCount"></span>
       </div>
       <div id="submissionHistory" class="submission-history hidden" aria-live="polite"></div>
@@ -236,6 +237,7 @@ const touchKeypad = document.querySelector("#touchKeypad");
 const inputTip = document.querySelector("#inputTip");
 const feedbackSummary = document.querySelector("#feedbackSummary");
 const feedbackDetails = document.querySelector("#feedbackDetails");
+const initialGateCount = document.querySelector("#initialGateCount");
 const minimalGateCount = document.querySelector("#minimalGateCount");
 const hintArea = document.querySelector("#hintArea");
 const hintField = document.querySelector("#hintField");
@@ -3192,6 +3194,7 @@ function findDualDistributiveComplementMatch(operands) {
 }
 
 function renderGateMetrics() {
+  initialGateCount.textContent = `Question gates: ${state.challenge.initialGateCount}`;
   minimalGateCount.textContent = `Target gates: ≤ ${state.challenge.minimalGateCount}`;
 }
 
