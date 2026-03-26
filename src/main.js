@@ -1605,7 +1605,7 @@ function renderInputHelpModalContent() {
         <tr><td><code>.</code></td><td>AND</td><td>Press <span class="key-chip">.</span> or <span class="key-chip">&gt;</span> (same key)</td></tr>
         <tr><td><code>+</code></td><td>OR</td><td>Press <span class="key-chip">+</span> or <span class="key-chip">=</span> (same key)</td></tr>
         <tr><td><span class="overbar-symbol">A</span></td><td>NOT</td><td>Press <span class="key-chip">-</span></td></tr>
-        <tr><td colspan="3">To toggle NOT gates: press <span class="key-chip">&#92;</span> to cycle through existing NOTs and other groups, then press <span class="key-chip">Enter</span>. If the target already has NOT, it is removed; otherwise NOT is added. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout.</td></tr>
+        <tr><td colspan="3">To toggle NOT gates: press <span class="key-chip">&#92;</span> to cycle through existing NOTs and other groups, then press <span class="key-chip">Enter</span>. If the target already has NOT, it is removed; otherwise NOT is added. Press <span class="key-chip">Esc</span> to cancel, or wait for timeout. Alternatively you can edit the expression by toggling OCR mode then back to AQA after you have finished.</td></tr>
       </tbody>
     </table>
 
