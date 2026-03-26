@@ -993,6 +993,39 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
+    const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+    const isBackslashKey = event.key === "\\" || event.code === "Backslash";
+
+    if (
+      isBackslashKey
+      && !hasModifier
+      && state.notationId === "aqa"
+      && !shouldUseCustomTouchKeypad()
+      && !hasMathLiveAnswerFocus()
+      && !isAnyModalOpen()
+      && !isEditableTypingTarget(event.target)
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+
+      try {
+        answerField.focus({ preventScroll: true });
+      } catch {
+        answerField.focus();
+      }
+
+      if (!cycleUnwrapCandidate()) {
+        setFeedback(
+          "This expression has no NOT toggle targets right now.",
+          "info",
+          [],
+        );
+      }
+
+      return;
+    }
+
     if (event.key !== "Escape") {
       return;
     }
@@ -1139,6 +1172,24 @@ function isWithinCopyAllowedArea(node) {
   }
 
   return Boolean(element.closest("#challengeField, #answerField, #submissionHistory"));
+}
+
+function isEditableTypingTarget(target) {
+  const element = target instanceof Element ? target : target?.parentElement;
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest("input, textarea, select, [contenteditable], [role='textbox']"),
+  );
+}
+
+function isAnyModalOpen() {
+  return Boolean(
+    (inputHelpModal && !inputHelpModal.classList.contains("hidden"))
+    || (worksheetModal && !worksheetModal.classList.contains("hidden")),
+  );
 }
 
 function handleAnswerFieldKeydown(event) {
