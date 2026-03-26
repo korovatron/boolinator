@@ -123,8 +123,8 @@ root.innerHTML = `
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
       <div class="actions">
         <div class="actions-left">
-          <button id="touchUnwrapCycleBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Highlight the next NOT toggle target in AQA mode."><span class="overbar-symbol">Cycle</span></button>
-          <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Apply NOT toggle to the currently highlighted target in AQA mode.">Apply</button>
+          <button id="touchUnwrapCycleBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Highlight the next NOT toggle target in AQA mode.">Cycle</button>
+          <button id="touchUnwrapConfirmBtn" class="ghost-btn touch-unwrap-btn hidden" type="button" title="Apply NOT toggle to the currently highlighted target in AQA mode."><span class="overbar-symbol">Toggle</span></button>
         </div>
         <div class="actions-right">
           <button id="resetBtn" class="ghost-btn" title="Reset input to your latest equivalent step, or the original question if no steps exist.">Reset</button>
@@ -2959,11 +2959,10 @@ function restoreUnwrapFeedbackSnapshot() {
 }
 
 function setUnwrapFeedback() {
-  const candidateNumber = state.unwrapCandidateIndex + 1;
-  const candidateCount = state.unwrapCandidates.length;
-  const candidate = state.unwrapCandidates[state.unwrapCandidateIndex];
-  const action = candidate?.kind === "latex-overbar" ? "REMOVE NOT" : "ADD NOT";
-  feedbackSummary.innerHTML = `<span class="feedback-unwrap-highlight">Press <kbd>&#92;</kbd> to cycle, <kbd>ENTER</kbd> to toggle NOT on/off, <kbd>ESC</kbd> to cancel</span>`;
+  const touchMode = shouldUseCustomTouchKeypad();
+  feedbackSummary.innerHTML = touchMode
+    ? `<span class="feedback-unwrap-highlight">Tap <kbd>Cycle</kbd> to cycle groups, <kbd>Toggle</kbd> to toggle NOT on/off</span>`
+    : `<span class="feedback-unwrap-highlight">Press <kbd>&#92;</kbd> to cycle, <kbd>ENTER</kbd> to toggle NOT on/off, <kbd>ESC</kbd> to cancel</span>`;
   feedbackSummary.className = `${toneClass("info")} feedback-unwrap-active`;
   feedbackDetails.innerHTML = "";
 }
