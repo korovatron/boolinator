@@ -1643,12 +1643,12 @@ body:not([data-theme="light"]) .tone-info {
 }
 
 .tone-good {
-  background: linear-gradient(130deg, rgba(77, 255, 184, 0.24), rgba(77, 255, 184, 0.14));
-  border: 1px solid rgba(77, 255, 184, 0.48);
+  background: linear-gradient(130deg, rgba(59, 130, 246, 0.3), rgba(6, 182, 212, 0.16));
+  border: 1px solid rgba(96, 165, 250, 0.56);
 }
 
 body:not([data-theme="light"]) .tone-good {
-  background: rgba(77, 255, 184, 0.2);
+  background: rgba(59, 130, 246, 0.24);
 }
 
 .tone-success {
@@ -1687,8 +1687,8 @@ body[data-theme="light"] .tone-info {
 
 body[data-theme="light"] .tone-good {
   border-width: 2px;
-  border-color: rgba(18, 124, 111, 0.6);
-  background: rgba(36, 182, 165, 0.22);
+  border-color: rgba(37, 99, 235, 0.62);
+  background: rgba(96, 165, 250, 0.24);
 }
 
 body[data-theme="light"] .tone-success {
