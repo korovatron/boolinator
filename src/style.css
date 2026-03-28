@@ -1039,6 +1039,7 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
   padding: 18px;
   background: rgba(1, 10, 20, 0.68);
   backdrop-filter: blur(4px);
+  touch-action: none;
 }
 
 .input-help-dialog {
@@ -1046,6 +1047,8 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
   width: min(720px, 100%);
   max-height: min(82vh, 760px);
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: none;
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--panel-border) 88%, transparent);
   background: var(--surface-elevated);
@@ -1069,6 +1072,9 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
 }
 
 .input-help-content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   font-size: 0.93rem;
   line-height: 1.45;
 }
@@ -1202,6 +1208,8 @@ body[data-theme="light"] .progress-history-difficulty-unknown {
   gap: 6px;
   max-height: 340px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding-right: 4px;
 }
 
