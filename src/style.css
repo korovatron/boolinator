@@ -1216,37 +1216,20 @@ body[data-theme="light"] .progress-history-difficulty-unknown {
   letter-spacing: 0.01em;
 }
 
-.progress-step-field {
-  min-height: 56px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-}
-
-body:not(.is-ios-device) .progress-step-field {
-  min-height: 56px;
-  padding: 0 8px;
-}
-
-body:not(.is-ios-device) .progress-step-field::part(container) {
-  display: flex;
+.progress-step-container {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  justify-content: center;
-  min-height: 56px;
-  height: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface) 78%, black 22%);
 }
 
-body:not(.is-ios-device) .progress-step-field::part(content) {
-  display: block;
-  width: fit-content;
-  margin-inline: auto;
-  text-align: center;
-}
-
-.progress-step-field::part(virtual-keyboard-toggle),
-.progress-step-field::part(menu-toggle) {
-  display: none;
+body[data-theme="light"] .progress-step-container {
+  background: color-mix(in srgb, var(--surface) 90%, white 10%);
 }
 
 .progress-step-question {
@@ -1261,6 +1244,33 @@ body:not(.is-ios-device) .progress-step-field::part(content) {
 body[data-theme="light"] .progress-step-answer {
   border-color: rgba(16, 152, 97, 0.45);
   background: rgba(16, 152, 97, 0.07);
+}
+
+.progress-step-field {
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+body:not(.is-ios-device) .progress-step-field::part(container) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  height: 100%;
+}
+
+body:not(.is-ios-device) .progress-step-field::part(content) {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.progress-step-field::part(virtual-keyboard-toggle),
+.progress-step-field::part(menu-toggle) {
+  display: none;
 }
 
 .progress-actions {

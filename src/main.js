@@ -2036,17 +2036,25 @@ function renderProgressHistorySteps(entry) {
     label.textContent = labelText;
     row.appendChild(label);
 
+    let containerClass = "progress-step-container";
+    if (isFirst) containerClass += " progress-step-question";
+    else if (isLast) containerClass += " progress-step-answer";
+
+    const container = document.createElement("div");
+    container.className = containerClass;
+
+    const symbol = document.createElement("span");
+    symbol.className = "equiv-symbol";
+    symbol.textContent = isFirst ? "" : "\u2261";
+    symbol.setAttribute("aria-hidden", "true");
+    container.appendChild(symbol);
+
     const field = document.createElement("math-field");
     field.setAttribute("read-only", "");
     field.setAttribute("math-virtual-keyboard-policy", "manual");
-    if (isFirst) {
-      field.className = "progress-step-field progress-step-question";
-    } else if (isLast) {
-      field.className = "progress-step-field progress-step-answer";
-    } else {
-      field.className = "progress-step-field";
-    }
-    row.appendChild(field);
+    field.className = "progress-step-field";
+    container.appendChild(field);
+    row.appendChild(container);
     progressHistorySteps.appendChild(row);
 
     renderReadonlyMathFieldLatex(field, latex);
