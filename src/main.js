@@ -205,10 +205,7 @@ root.innerHTML = `
             <p id="progressHistoryDifficulty" class="progress-history-difficulty"></p>
           </div>
         </div>
-        <label for="progressHistoryQuestionField">Original question</label>
-        <math-field id="progressHistoryQuestionField" read-only></math-field>
-        <label for="progressHistoryAnswerField">Minimal answer submitted</label>
-        <math-field id="progressHistoryAnswerField" read-only></math-field>
+        <div id="progressHistorySteps" class="progress-history-steps"></div>
       </div>
       <div class="actions progress-actions">
         <div class="actions-left">
@@ -255,8 +252,7 @@ const progressSummary = document.querySelector("#progressSummary");
 const progressHistoryIndex = document.querySelector("#progressHistoryIndex");
 const progressHistoryMeta = document.querySelector("#progressHistoryMeta");
 const progressHistoryDifficulty = document.querySelector("#progressHistoryDifficulty");
-const progressHistoryQuestionField = document.querySelector("#progressHistoryQuestionField");
-const progressHistoryAnswerField = document.querySelector("#progressHistoryAnswerField");
+const progressHistorySteps = document.querySelector("#progressHistorySteps");
 const progressPrevBtn = document.querySelector("#progressPrevBtn");
 const progressNextBtn = document.querySelector("#progressNextBtn");
 const progressClearBtn = document.querySelector("#progressClearBtn");
@@ -1939,6 +1935,7 @@ function recordSolvedChallenge(finalAst) {
     challenge: challengeSnapshot,
     finalAst: cloneBooleanAst(finalAst),
     finalGateCount: gateCountAst(finalAst),
+    steps: state.equivalentSubmissions.map((ast) => cloneBooleanAst(ast)),
   });
 
   state.solvedHistory = nextEntries;
@@ -1958,7 +1955,7 @@ function getActiveSolvedHistoryEntry() {
 }
 
 function renderProgressModalState() {
-  if (!progressSummary || !progressHistoryIndex || !progressHistoryMeta || !progressHistoryDifficulty || !progressHistoryQuestionField || !progressHistoryAnswerField) {
+  if (!progressSummary || !progressHistoryIndex || !progressHistoryMeta || !progressHistoryDifficulty || !progressHistorySteps) {
     return;
   }
 
@@ -1975,8 +1972,7 @@ function renderProgressModalState() {
     progressHistoryMeta.textContent = "Solve a challenge at minimal gate count to add it here.";
     progressHistoryDifficulty.textContent = "";
     progressHistoryDifficulty.className = "progress-history-difficulty hidden";
-    setFieldValue(progressHistoryQuestionField, "");
-    setFieldValue(progressHistoryAnswerField, "");
+    progressHistorySteps.innerHTML = "";
     progressPrevBtn.disabled = true;
     progressNextBtn.disabled = true;
     progressTryAgainBtn.disabled = true;
@@ -2011,20 +2007,64 @@ function renderProgressModalState() {
     progressHistoryDifficulty.className = "progress-history-difficulty progress-history-difficulty-unknown";
   }
 
-  const challenge = entry.challenge;
-  const questionLatex = formatAstForAnswerField(challenge.initialAst);
-  const answerLatex = formatAstForAnswerField(entry.finalAst);
-  renderStableReadonlyMathFieldLatex(progressHistoryQuestionField, questionLatex);
-  renderStableReadonlyMathFieldLatex(progressHistoryAnswerField, answerLatex);
-  disableMathFieldContextMenu(progressHistoryQuestionField);
-  disableMathFieldContextMenu(progressHistoryAnswerField);
-  makeReadonlyMathFieldUnfocusable(progressHistoryQuestionField);
-  makeReadonlyMathFieldUnfocusable(progressHistoryAnswerField);
+  renderProgressHistorySteps(entry);
 
   progressPrevBtn.disabled = total <= 1 || state.progressHistoryIndex <= 0;
   progressNextBtn.disabled = total <= 1 || state.progressHistoryIndex >= total - 1;
   progressTryAgainBtn.disabled = false;
   progressClearBtn.disabled = false;
+}
+
+function renderProgressHistorySteps(entry) {
+  progressHistorySteps.innerHTML = "";
+
+  const challenge = entry.challenge;
+  const questionLatex = formatAstForAnswerField(challenge.initialAst);
+
+  // Build the ordered list of step ASTs. Legacy entries (no steps array) show
+  // just [finalAst]; new entries have every equivalent submission stored.
+  const stepAsts = Array.isArray(entry.steps) && entry.steps.length > 0
+    ? entry.steps
+    : [entry.finalAst];
+
+  const addRow = (labelText, latex, isFirst, isLast) => {
+    const row = document.createElement("div");
+    row.className = "progress-step-row";
+
+    const label = document.createElement("label");
+    label.className = "progress-step-label";
+    label.textContent = labelText;
+    row.appendChild(label);
+
+    const field = document.createElement("math-field");
+    field.setAttribute("read-only", "");
+    field.setAttribute("math-virtual-keyboard-policy", "manual");
+    if (isFirst) {
+      field.className = "progress-step-field progress-step-question";
+    } else if (isLast) {
+      field.className = "progress-step-field progress-step-answer";
+    } else {
+      field.className = "progress-step-field";
+    }
+    row.appendChild(field);
+    progressHistorySteps.appendChild(row);
+
+    renderReadonlyMathFieldLatex(field, latex);
+    disableMathFieldContextMenu(field);
+    makeReadonlyMathFieldUnfocusable(field);
+  };
+
+  addRow("Original question", questionLatex, true, stepAsts.length === 0);
+
+  stepAsts.forEach((ast, i) => {
+    const isLast = i === stepAsts.length - 1;
+    const latex = formatAstForAnswerField(ast);
+    const gates = gateCountAst(ast);
+    const label = isLast
+      ? `Step ${i + 1} — minimal answer (${gates} gates)`
+      : `Step ${i + 1} (${gates} gates)`;
+    addRow(label, latex, false, isLast);
+  });
 }
 
 function loadSolvedChallenge(entry) {

@@ -1197,39 +1197,70 @@ body[data-theme="light"] .progress-history-difficulty-unknown {
   color: rgba(15, 47, 69, 0.6);
 }
 
-#progressHistoryQuestionField,
-#progressHistoryAnswerField {
-  min-height: 72px;
-  padding: 8px;
+.progress-history-steps {
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
-body:not(.is-ios-device) #progressHistoryQuestionField,
-body:not(.is-ios-device) #progressHistoryAnswerField {
+.progress-step-row {
+  display: grid;
+  gap: 3px;
+}
+
+.progress-step-label {
+  font: 600 0.78rem/1.2 "IBM Plex Mono", monospace;
+  color: var(--text-soft);
+  letter-spacing: 0.01em;
+}
+
+.progress-step-field {
+  min-height: 56px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+body:not(.is-ios-device) .progress-step-field {
+  min-height: 56px;
   padding: 0 8px;
 }
 
-body:not(.is-ios-device) #progressHistoryQuestionField::part(container),
-body:not(.is-ios-device) #progressHistoryAnswerField::part(container) {
+body:not(.is-ios-device) .progress-step-field::part(container) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 72px;
+  min-height: 56px;
   height: 100%;
 }
 
-body:not(.is-ios-device) #progressHistoryQuestionField::part(content),
-body:not(.is-ios-device) #progressHistoryAnswerField::part(content) {
+body:not(.is-ios-device) .progress-step-field::part(content) {
   display: block;
   width: fit-content;
   margin-inline: auto;
   text-align: center;
 }
 
-#progressHistoryQuestionField::part(virtual-keyboard-toggle),
-#progressHistoryQuestionField::part(menu-toggle),
-#progressHistoryAnswerField::part(virtual-keyboard-toggle),
-#progressHistoryAnswerField::part(menu-toggle) {
+.progress-step-field::part(virtual-keyboard-toggle),
+.progress-step-field::part(menu-toggle) {
   display: none;
+}
+
+.progress-step-question {
+  border-color: color-mix(in srgb, var(--panel-border) 80%, transparent);
+}
+
+.progress-step-answer {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: color-mix(in srgb, rgba(52, 211, 153, 0.08) 100%, transparent);
+}
+
+body[data-theme="light"] .progress-step-answer {
+  border-color: rgba(16, 152, 97, 0.45);
+  background: rgba(16, 152, 97, 0.07);
 }
 
 .progress-actions {
