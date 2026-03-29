@@ -449,6 +449,12 @@ function setupIOSRubberBandSuppression() {
       return;
     }
 
+    // When a modal is open, body/html overflow is already locked — don't
+    // suppress touchmove or the dialog's native scroll won't work on iOS.
+    if (document.body.classList.contains("modal-open")) {
+      return;
+    }
+
     // Allow scrolling inside a modal dialog that has overflow content.
     const dialog = event.target.closest?.(".input-help-dialog");
     if (dialog && dialog.scrollHeight > dialog.clientHeight) {
