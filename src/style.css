@@ -1039,7 +1039,6 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
   padding: 18px;
   background: rgba(1, 10, 20, 0.68);
   backdrop-filter: blur(4px);
-  touch-action: none;
 }
 
 .input-help-dialog {
@@ -1532,7 +1531,8 @@ body:not(.is-ios-device) .progress-step-field::part(content) {
   }
 }
 
-body.modal-open {
+body.modal-open,
+html:has(body.modal-open) {
   overflow: hidden;
 }
 
