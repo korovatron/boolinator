@@ -449,6 +449,12 @@ function setupIOSRubberBandSuppression() {
       return;
     }
 
+    // Allow scrolling inside a modal dialog that has overflow content.
+    const dialog = event.target.closest?.(".input-help-dialog");
+    if (dialog && dialog.scrollHeight > dialog.clientHeight) {
+      return;
+    }
+
     event.preventDefault();
   }, { passive: false, capture: true });
 }
