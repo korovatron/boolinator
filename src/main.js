@@ -1756,6 +1756,19 @@ function renderInputHelpModalContent() {
   `;
 }
 
+// Force WebKit to create composited scroll layers for the dialog inside the
+// fixed-position overlay. iOS discards these layers when a PWA is backgrounded,
+// and they are only recreated after a touch interaction — unless we prime them
+// explicitly by writing scrollTop inside a rAF.
+function primeModalScroll(modal) {
+  requestAnimationFrame(() => {
+    const dialog = modal?.querySelector(".input-help-dialog");
+    if (dialog) {
+      dialog.scrollTop = dialog.scrollTop;
+    }
+  });
+}
+
 function openInputHelpModal() {
   if (!inputHelpModal) {
     return;
@@ -1766,6 +1779,7 @@ function openInputHelpModal() {
   renderInputHelpModalContent();
   inputHelpModal.classList.remove("hidden");
   syncModalBodyState();
+  primeModalScroll(inputHelpModal);
 }
 
 function closeInputHelpModal() {
@@ -1797,6 +1811,7 @@ function openWorksheetModal() {
   renderWorksheetModalState();
   worksheetModal.classList.remove("hidden");
   syncModalBodyState();
+  primeModalScroll(worksheetModal);
 }
 
 function closeWorksheetModal(options = {}) {
@@ -1821,6 +1836,7 @@ function openProgressModal() {
   renderProgressModalState();
   progressModal.classList.remove("hidden");
   syncModalBodyState();
+  primeModalScroll(progressModal);
 }
 
 function closeProgressModal() {
