@@ -1047,8 +1047,9 @@ body[data-theme="light"] #touchUnwrapConfirmBtn.touch-unwrap-btn-active {
   width: min(720px, 100%);
   max-height: min(82vh, 760px);
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: none;
+  touch-action: pan-y;
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--panel-border) 88%, transparent);
   background: var(--surface-elevated);
