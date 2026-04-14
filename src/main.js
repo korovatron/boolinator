@@ -148,7 +148,7 @@ root.innerHTML = `
     </section>
 
     <p class="copyright">&copy; 2026 Neil Kendall</p>
-    <p class="more-link">More @ <a href="https://www.korovatron.co.uk/#computer-science" target="_blank" rel="noopener noreferrer">www.korovatron.co.uk</a></p>
+    <p class="more-link">More @ <a href="https://www.korovatron.co.uk/" target="_blank" rel="noopener noreferrer">www.korovatron.co.uk</a></p>
   </main>
 
   <div id="inputHelpModal" class="input-help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="inputHelpTitle">
