@@ -2207,6 +2207,12 @@ function setWorksheetStatus(message, tone) {
   worksheetStatus.className = `worksheet-status ${toneClass(tone)}`;
 }
 
+async function yieldForUiPaint(frames = 1) {
+  for (let index = 0; index < frames; index += 1) {
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+}
+
 async function generateWorksheetPdf() {
   if (state.worksheetGenerating) {
     return;
@@ -2223,11 +2229,13 @@ async function generateWorksheetPdf() {
   }
   state.worksheetGenerating = true;
   renderWorksheetModalState();
-  setWorksheetStatus("Generating fresh questions...", "info");
+  setWorksheetStatus("Generating questions...", "info");
+  await yieldForUiPaint(2);
 
   try {
     const worksheetItems = buildWorksheetItems(WORKSHEET_QUESTION_COUNT, notationId, worksheetDifficultyId);
-    setWorksheetStatus("Rendering the PDF pages...", "info");
+    setWorksheetStatus("Rendering PDF pages...", "info");
+    await yieldForUiPaint(1);
     const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
     const filename = buildWorksheetFilename(notationId, worksheetTitle);
     pdf.save(filename);
