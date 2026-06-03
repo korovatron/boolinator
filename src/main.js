@@ -18,7 +18,7 @@ const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
 const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
 const VIEWPORT_SYNC_DELAYS_MS = [50, 150, 300, 500, 800, 1200];
 const VIEWPORT_RESIZE_THRESHOLD_PX = 30;
-const IOS_WORKSHEET_CAPTURE_SCALE = 1.35;
+const IOS_WORKSHEET_CAPTURE_SCALE = 1.3;
 const DEFAULT_WORKSHEET_CAPTURE_SCALE = 2;
 
 let worksheetPdfDependenciesPromise = null;
@@ -2381,7 +2381,7 @@ async function renderWorksheetPdfDocument(items, notationId, worksheetTitle) {
         logging: false,
       });
 
-      const imageData = canvas.toDataURL("image/jpeg", 0.92);
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
       pdf.addImage(imageData, "JPEG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
     }
 
