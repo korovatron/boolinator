@@ -18,6 +18,41 @@ const JSPDF_MODULE_URL = "https://esm.sh/jspdf@2.5.2?bundle";
 const HTML2CANVAS_MODULE_URL = "https://esm.sh/html2canvas@1.4.1?bundle";
 const VIEWPORT_SYNC_DELAYS_MS = [50, 150, 300, 500, 800, 1200];
 const VIEWPORT_RESIZE_THRESHOLD_PX = 30;
+const IOS_WORKSHEET_CAPTURE_SCALE = 1.35;
+const DEFAULT_WORKSHEET_CAPTURE_SCALE = 2;
+
+let worksheetPdfDependenciesPromise = null;
+
+function isAppleMobileWebKit() {
+  const ua = window.navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return isIOS && /AppleWebKit/.test(ua);
+}
+
+function getWorksheetCaptureScale() {
+  return isAppleMobileWebKit() ? IOS_WORKSHEET_CAPTURE_SCALE : DEFAULT_WORKSHEET_CAPTURE_SCALE;
+}
+
+function loadWorksheetPdfDependencies() {
+  if (!worksheetPdfDependenciesPromise) {
+    worksheetPdfDependenciesPromise = Promise.all([
+      import(JSPDF_MODULE_URL),
+      import(HTML2CANVAS_MODULE_URL),
+    ]).then(([jspdfModule, html2canvasModule]) => {
+      const jsPDF = jspdfModule?.jsPDF;
+      const html2canvas = html2canvasModule?.default;
+
+      if (typeof jsPDF !== "function" || typeof html2canvas !== "function") {
+        throw new Error("Could not load worksheet PDF modules.");
+      }
+
+      return { jsPDF, html2canvas };
+    });
+  }
+
+  return worksheetPdfDependenciesPromise;
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
@@ -1824,6 +1859,11 @@ function openWorksheetModal() {
   worksheetModal.classList.remove("hidden");
   syncModalBodyState();
   primeModalScroll(worksheetModal);
+
+  // Warm dynamic imports while user adjusts worksheet options.
+  void loadWorksheetPdfDependencies().catch(() => {
+    worksheetPdfDependenciesPromise = null;
+  });
 }
 
 function closeWorksheetModal(options = {}) {
@@ -2309,10 +2349,8 @@ function generateChallengeWithRetry(maxRetries = 1, difficultyId = state.difficu
 }
 
 async function renderWorksheetPdfDocument(items, notationId, worksheetTitle) {
-  const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
-    import(JSPDF_MODULE_URL),
-    import(HTML2CANVAS_MODULE_URL),
-  ]);
+  const { jsPDF, html2canvas } = await loadWorksheetPdfDependencies();
+  const captureScale = getWorksheetCaptureScale();
 
   const pages = renderWorksheetPages(items, notationId, worksheetTitle);
   worksheetRenderRoot?.classList.add("is-capturing");
@@ -2338,7 +2376,7 @@ async function renderWorksheetPdfDocument(items, notationId, worksheetTitle) {
 
       const canvas = await html2canvas(pages[index], {
         backgroundColor: "#ffffff",
-        scale: 2,
+        scale: captureScale,
         useCORS: true,
         logging: false,
       });

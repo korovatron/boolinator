@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v1.0.33";
+const CACHE_NAME = "boolinator-v1.0.34";
 
 const LOCAL_ASSETS = [
   "./",
@@ -11,13 +11,6 @@ const LOCAL_ASSETS = [
   "./images/theBoolinator180.png",
   "./images/theBoolinator192.png",
   "./images/screenshot.png",
-];
-
-const CDN_ASSETS = [
-  "https://esm.sh/mathjs@15.1.1",
-  "https://esm.sh/mathlive@0.109.0",
-  "https://esm.sh/jspdf@2.5.2?bundle",
-  "https://esm.sh/html2canvas@1.4.1?bundle",
 ];
 
 function toScopeUrl(path) {
@@ -69,12 +62,7 @@ async function getCachedAppShell() {
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-
-    // Local shell is mandatory for quick startup even on weak networks.
     await cache.addAll(LOCAL_ASSETS.map((asset) => toScopeUrl(asset)));
-
-    // CDN modules are best-effort: do not block install if they are unreachable.
-    await Promise.allSettled(CDN_ASSETS.map((url) => cache.add(url)));
   })());
 
   self.skipWaiting();
@@ -91,7 +79,6 @@ self.addEventListener("fetch", (event) => {
   const isSameOrigin = url.origin === self.location.origin;
   const isNavigation = request.mode === "navigate";
   const isStaticAsset = ["script", "style", "image", "font"].includes(request.destination);
-  const isEsmSh = url.origin === "https://esm.sh";
 
   // Same-origin page requests: cache-first for instant open, refresh in background.
   if (isNavigation && isSameOrigin) {
@@ -120,8 +107,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for local static files and pinned CDN modules, then refresh in background.
-  if ((isSameOrigin && isStaticAsset) || isEsmSh) {
+  if (isSameOrigin && isStaticAsset) {
     event.respondWith((async () => {
       const { response, background } = await cacheFirstWithBackgroundRefresh(request, { ignoreSearch: true });
       if (background) {
