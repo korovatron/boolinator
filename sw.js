@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v1.0.39";
+const CACHE_NAME = "boolinator-v1.0.40";
 
 const LOCAL_ASSETS = [
   "./",
@@ -27,7 +27,11 @@ async function cacheFirstWithBackgroundRefresh(request, options = {}) {
   const networkPromise = fetch(request)
     .then((response) => {
       if (response && response.ok) {
-        cache.put(request, response.clone());
+        try {
+          cache.put(request, response.clone());
+        } catch {
+          // Response body already used; skip caching this response.
+        }
       }
       return response;
     })
@@ -83,6 +87,14 @@ self.addEventListener("fetch", (event) => {
   const isNavigation = request.mode === "navigate";
   const isStaticAsset = ["script", "style", "image", "font"].includes(request.destination);
 
+  // Let third-party analytics and beacon requests bypass the SW completely.
+  const isThirdPartyAnalytics = url.hostname === "static.cloudflareinsights.com"
+    || url.hostname === "cloudflareinsights.com";
+
+  if (isThirdPartyAnalytics) {
+    return;
+  }
+
   // Same-origin page requests: cache-first for instant open, refresh in background.
   if (isNavigation && isSameOrigin) {
     event.respondWith((async () => {
@@ -132,7 +144,11 @@ self.addEventListener("fetch", (event) => {
     fetch(request)
       .then((response) => {
         if (response && response.ok && isSameOrigin) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          try {
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          } catch {
+            // Response body already used; skip caching.
+          }
         }
 
         return response;
