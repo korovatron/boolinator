@@ -1,6 +1,4 @@
-import { all, create } from "mathjs";
-
-const math = create(all, {});
+const math = window.math;
 
 const VARIABLE_POOL = ["A", "B", "C", "D"];
 

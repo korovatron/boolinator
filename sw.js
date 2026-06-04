@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v1.0.38";
+const CACHE_NAME = "boolinator-v1.0.39";
 
 const LOCAL_ASSETS = [
   "./",
@@ -7,6 +7,7 @@ const LOCAL_ASSETS = [
   "./src/style.css",
   "./src/main.js",
   "./src/booleanEngine.js",
+  "./vendor/mathjs.umd.min.js",
   "./vendor/jspdf.umd.min.js",
   "./vendor/html2canvas.min.js",
   "./images/theBoolinator.png",
