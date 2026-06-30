@@ -2169,11 +2169,6 @@ function trackGoatcounterEvent(eventName, path = "") {
   const maxRetries = 6;
   const retryDelayMs = 500;
 
-  console.log("[GoatCounter] Track requested", {
-    eventName,
-    path: resolvedPath,
-  });
-
   const send = (attempt = 0) => {
     try {
       const count = window.goatcounter?.count;
@@ -2183,39 +2178,17 @@ function trackGoatcounterEvent(eventName, path = "") {
           title: eventName,
           event: true,
         });
-        console.log("[GoatCounter] Event sent", {
-          eventName,
-          path: resolvedPath,
-          attempt,
-        });
         return;
       }
     } catch {
       // Ignore analytics errors so worksheet generation is never blocked.
-      console.warn("[GoatCounter] Event send failed with exception", {
-        eventName,
-        path: resolvedPath,
-        attempt,
-      });
       return;
     }
 
     if (attempt < maxRetries) {
-      console.log("[GoatCounter] Event deferred - tracker unavailable, retrying", {
-        eventName,
-        path: resolvedPath,
-        attempt,
-        nextAttemptInMs: retryDelayMs,
-      });
       window.setTimeout(() => send(attempt + 1), retryDelayMs);
       return;
     }
-
-    console.warn("[GoatCounter] Event not sent - tracker unavailable after retries", {
-      eventName,
-      path: resolvedPath,
-      attempts: maxRetries + 1,
-    });
   };
 
   send();
