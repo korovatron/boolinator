@@ -2169,6 +2169,11 @@ function trackGoatcounterEvent(eventName, path = "") {
   const maxRetries = 6;
   const retryDelayMs = 500;
 
+  console.log("[GoatCounter] Track requested", {
+    eventName,
+    path: resolvedPath,
+  });
+
   const send = (attempt = 0) => {
     try {
       const count = window.goatcounter?.count;
@@ -2178,7 +2183,7 @@ function trackGoatcounterEvent(eventName, path = "") {
           title: eventName,
           event: true,
         });
-        console.info("[GoatCounter] Event sent", {
+        console.log("[GoatCounter] Event sent", {
           eventName,
           path: resolvedPath,
           attempt,
@@ -2196,7 +2201,7 @@ function trackGoatcounterEvent(eventName, path = "") {
     }
 
     if (attempt < maxRetries) {
-      console.info("[GoatCounter] Event deferred - tracker unavailable, retrying", {
+      console.log("[GoatCounter] Event deferred - tracker unavailable, retrying", {
         eventName,
         path: resolvedPath,
         attempt,
