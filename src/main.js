@@ -2164,21 +2164,56 @@ function setWorksheetStatus(message, tone) {
   worksheetStatus.className = `worksheet-status ${toneClass(tone)}`;
 }
 
-function trackGoatcounterEvent(eventName) {
-  try {
-    const count = window.goatcounter?.count;
-    if (typeof count !== "function") {
+function trackGoatcounterEvent(eventName, path = "") {
+  const resolvedPath = path || `/${eventName}`;
+  const maxRetries = 6;
+  const retryDelayMs = 500;
+
+  const send = (attempt = 0) => {
+    try {
+      const count = window.goatcounter?.count;
+      if (typeof count === "function") {
+        count({
+          path: resolvedPath,
+          title: eventName,
+          event: true,
+        });
+        console.info("[GoatCounter] Event sent", {
+          eventName,
+          path: resolvedPath,
+          attempt,
+        });
+        return;
+      }
+    } catch {
+      // Ignore analytics errors so worksheet generation is never blocked.
+      console.warn("[GoatCounter] Event send failed with exception", {
+        eventName,
+        path: resolvedPath,
+        attempt,
+      });
       return;
     }
 
-    count({
-      path: `/${eventName}`,
-      title: eventName,
-      event: true,
+    if (attempt < maxRetries) {
+      console.info("[GoatCounter] Event deferred - tracker unavailable, retrying", {
+        eventName,
+        path: resolvedPath,
+        attempt,
+        nextAttemptInMs: retryDelayMs,
+      });
+      window.setTimeout(() => send(attempt + 1), retryDelayMs);
+      return;
+    }
+
+    console.warn("[GoatCounter] Event not sent - tracker unavailable after retries", {
+      eventName,
+      path: resolvedPath,
+      attempts: maxRetries + 1,
     });
-  } catch {
-    // Ignore analytics errors so worksheet generation is never blocked.
-  }
+  };
+
+  send();
 }
 
 async function yieldForUiPaint(frames = 1) {
@@ -2213,7 +2248,7 @@ async function generateWorksheetPdf() {
     const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
     const filename = buildWorksheetFilename(notationId, worksheetTitle);
     pdf.save(filename);
-    trackGoatcounterEvent("Boolinator - Gernerate Worksheet");
+    trackGoatcounterEvent("Boolinator - Generate Worksheet", "/worksheet-generated");
     setWorksheetStatus(`Downloaded ${filename}`, "success");
   } catch (error) {
     console.error("Worksheet PDF generation failed", error);
