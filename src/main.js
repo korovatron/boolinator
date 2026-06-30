@@ -2164,6 +2164,23 @@ function setWorksheetStatus(message, tone) {
   worksheetStatus.className = `worksheet-status ${toneClass(tone)}`;
 }
 
+function trackGoatcounterEvent(eventName) {
+  try {
+    const count = window.goatcounter?.count;
+    if (typeof count !== "function") {
+      return;
+    }
+
+    count({
+      path: `/${eventName}`,
+      title: eventName,
+      event: true,
+    });
+  } catch {
+    // Ignore analytics errors so worksheet generation is never blocked.
+  }
+}
+
 async function yieldForUiPaint(frames = 1) {
   for (let index = 0; index < frames; index += 1) {
     await new Promise((resolve) => requestAnimationFrame(() => resolve()));
@@ -2196,6 +2213,7 @@ async function generateWorksheetPdf() {
     const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
     const filename = buildWorksheetFilename(notationId, worksheetTitle);
     pdf.save(filename);
+    trackGoatcounterEvent("Boolinator - Gernerate Worksheet");
     setWorksheetStatus(`Downloaded ${filename}`, "success");
   } catch (error) {
     console.error("Worksheet PDF generation failed", error);
