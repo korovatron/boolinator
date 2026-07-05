@@ -1,4 +1,4 @@
-const CACHE_NAME = "boolinator-v1.0.46";
+const CACHE_NAME = "boolinator-v1.0.47";
 
 const LOCAL_ASSETS = [
   "./",
@@ -86,14 +86,6 @@ self.addEventListener("fetch", (event) => {
   const isSameOrigin = url.origin === self.location.origin;
   const isNavigation = request.mode === "navigate";
   const isStaticAsset = ["script", "style", "image", "font"].includes(request.destination);
-
-  // Let third-party analytics and beacon requests bypass the SW completely.
-  const isThirdPartyAnalytics = url.hostname === "static.cloudflareinsights.com"
-    || url.hostname === "cloudflareinsights.com";
-
-  if (isThirdPartyAnalytics) {
-    return;
-  }
 
   // Same-origin page requests: cache-first for instant open, refresh in background.
   if (isNavigation && isSameOrigin) {
