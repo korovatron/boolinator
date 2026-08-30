@@ -4235,7 +4235,7 @@ function checkAnswer() {
   if (studentGates <= state.challenge.minimalGateCount) {
     state.solved = true;
     recordSolvedChallenge(ast);
-    trackGoatcounterEvent("Boolinator - Question Completed", "/question-completed");
+    trackGoatcounterEvent("Boolinator - Question Completed", "/boolinator-question-completed");
     setFeedback("Equivalent and minimal. You solved this challenge.", "success", []);
     hintArea.classList.remove("hidden");
     renderHint();
