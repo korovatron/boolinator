@@ -2226,7 +2226,7 @@ async function generateWorksheetPdf() {
     const pdf = await renderWorksheetPdfDocument(worksheetItems, notationId, worksheetTitle);
     const filename = buildWorksheetFilename(notationId, worksheetTitle);
     pdf.save(filename);
-    trackGoatcounterEvent("Boolinator - Generate Worksheet", "/worksheet-generated");
+    trackGoatcounterEvent("Boolinator - Generate Worksheet", "/boolinator/worksheet-generated");
     setWorksheetStatus(`Downloaded ${filename}`, "success");
   } catch (error) {
     console.error("Worksheet PDF generation failed", error);
@@ -4235,7 +4235,7 @@ function checkAnswer() {
   if (studentGates <= state.challenge.minimalGateCount) {
     state.solved = true;
     recordSolvedChallenge(ast);
-    trackGoatcounterEvent("Boolinator - Question Completed", "/boolinator-question-completed");
+    trackGoatcounterEvent("Boolinator - Question Completed", "/boolinator/question-completed");
     setFeedback("Equivalent and minimal. You solved this challenge.", "success", []);
     hintArea.classList.remove("hidden");
     renderHint();
