@@ -119,6 +119,7 @@ root.innerHTML = `
       <p id="notationHelp" class="notation-help"></p>
       <div class="answer-field-wrapper">
         <math-field id="answerField" default-mode="math"></math-field>
+        <div id="validityHint" class="validity-hint hidden"></div>
         <div id="aqaHint" class="aqa-hint hidden">Press <kbd>&#92;</kbd> to toggle NOTs</div>
       </div>
       <div id="touchKeypad" class="touch-keypad hidden" aria-label="Boolean keypad"></div>
@@ -266,7 +267,10 @@ const worksheetRenderRoot = document.querySelector("#worksheetRenderRoot");
 const touchUnwrapCycleBtn = document.querySelector("#touchUnwrapCycleBtn");
 const touchUnwrapConfirmBtn = document.querySelector("#touchUnwrapConfirmBtn");
 const aqaHint = document.querySelector("#aqaHint");
+const validityHint = document.querySelector("#validityHint");
+const checkBtn = document.querySelector("#checkBtn");
 let isTouchDevice = detectTouchDevice();
+let isAnswerExpressionValid = true;
 
 const state = {
   themeId: "dark",
@@ -609,6 +613,7 @@ function setupMathFields() {
   renderAqaHint();
   bindTouchKeypadEvents();
   applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
+  updateAnswerFieldValidity();
 }
 
 function renderTouchUnwrapActionButtons() {
@@ -619,21 +624,34 @@ function renderTouchUnwrapActionButtons() {
     touchUnwrapCycleBtn.classList.toggle("hidden", !showButtons);
     touchUnwrapCycleBtn.classList.toggle("touch-unwrap-btn-active", active);
     touchUnwrapCycleBtn.setAttribute("aria-pressed", active ? "true" : "false");
+    touchUnwrapCycleBtn.disabled = !showButtons || !isAnswerExpressionValid;
   }
 
   if (touchUnwrapConfirmBtn) {
     touchUnwrapConfirmBtn.classList.toggle("hidden", !showButtons);
     touchUnwrapConfirmBtn.classList.toggle("touch-unwrap-btn-active", active);
-    touchUnwrapConfirmBtn.disabled = !showButtons || !active;
+    touchUnwrapConfirmBtn.disabled = !showButtons || !active || !isAnswerExpressionValid;
   }
 }
 
 function renderAqaHint() {
-  const showHint = state.notationId === "aqa" && !isTouchDevice;
+  const showHint = state.notationId === "aqa" && !isTouchDevice && isAnswerExpressionValid;
 
   if (aqaHint) {
     aqaHint.classList.toggle("hidden", !showHint);
   }
+}
+
+function updateActionAvailability() {
+  if (checkBtn) {
+    checkBtn.disabled = !isAnswerExpressionValid;
+  }
+
+  if (notationToggle) {
+    notationToggle.disabled = !isAnswerExpressionValid;
+  }
+
+  renderTouchUnwrapActionButtons();
 }
 
 function handleTouchUnwrapCycle() {
@@ -1000,7 +1018,7 @@ function bindEvents() {
     }
   });
 
-  document.querySelector("#checkBtn").addEventListener("click", () => {
+  checkBtn.addEventListener("click", () => {
     cancelUnwrapMode();
     checkAnswer();
     forceAnswerFieldBlurReset();
@@ -1151,7 +1169,9 @@ function bindEvents() {
         answerField.focus();
       }
 
-      if (!cycleUnwrapCandidate()) {
+      if (!isAnswerExpressionValid) {
+        setFeedback("Fix the invalid expression before toggling NOTs.", "info", []);
+      } else if (!cycleUnwrapCandidate()) {
         setFeedback(
           "This expression has no NOT toggle targets right now.",
           "info",
@@ -1198,6 +1218,9 @@ function bindEvents() {
       cancelUnwrapMode({ restoreFeedback: true, restoreSelection: true });
     }
     applyAdaptiveMathFieldScale(answerField, getFieldValue(answerField), "answer");
+    if (!state.suppressAnswerInputHandler) {
+      updateAnswerFieldValidity();
+    }
   });
 
   const ensureAnswerTapFocus = () => {
@@ -1342,7 +1365,9 @@ function handleAnswerFieldKeydown(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
-    if (!cycleUnwrapCandidate()) {
+    if (!isAnswerExpressionValid) {
+      setFeedback("Fix the invalid expression before toggling NOTs.", "info", []);
+    } else if (!cycleUnwrapCandidate()) {
       setFeedback(
         "This expression has no NOT toggle targets right now.",
         "info",
@@ -4294,7 +4319,55 @@ function setFieldValue(field, value) {
 
   if (field === answerField) {
     applyAdaptiveMathFieldScale(field, value, "answer");
+    if (!state.suppressAnswerInputHandler) {
+      updateAnswerFieldValidity();
+    }
   }
+}
+
+function updateAnswerFieldValidity() {
+  const raw = getFieldValue(answerField).trim();
+  if (!raw) {
+    answerField.classList.remove("answer-field-invalid");
+    renderValidityHint(null);
+    isAnswerExpressionValid = true;
+    updateActionAvailability();
+    renderAqaHint();
+    return;
+  }
+
+  try {
+    const ast = parseBooleanExpression(sanitizeLatex(raw));
+    const variables = [...extractVariables(ast)];
+    const invalidVariables = variables.filter((name) => !state.challenge?.variables?.includes(name));
+    const isValid = invalidVariables.length === 0;
+    answerField.classList.toggle("answer-field-invalid", !isValid);
+    renderValidityHint(isValid);
+    isAnswerExpressionValid = isValid;
+  } catch {
+    answerField.classList.add("answer-field-invalid");
+    renderValidityHint(false);
+    isAnswerExpressionValid = false;
+  }
+
+  updateActionAvailability();
+  renderAqaHint();
+}
+
+function renderValidityHint(isValid) {
+  if (!validityHint) {
+    return;
+  }
+
+  if (isValid === null || isTouchDevice) {
+    validityHint.classList.add("hidden");
+    return;
+  }
+
+  validityHint.textContent = isValid ? "Valid expression" : "Invalid expression";
+  validityHint.classList.toggle("validity-hint--valid", isValid);
+  validityHint.classList.toggle("validity-hint--invalid", !isValid);
+  validityHint.classList.remove("hidden");
 }
 
 function getFieldValue(field) {

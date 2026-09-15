@@ -319,6 +319,11 @@ h2 {
   cursor: pointer;
 }
 
+.mode-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .mode-toggle > span:not(.mode-divider) {
   flex: 1;
   min-width: 0;
@@ -608,6 +613,34 @@ body[data-theme="light"] #hintField::part(content) {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.validity-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 8px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: left;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.validity-hint--valid {
+  color: rgba(74, 222, 128, 0.9);
+}
+
+.validity-hint--invalid {
+  color: rgba(248, 113, 113, 0.9);
+}
+
+body[data-theme="light"] .validity-hint--valid {
+  color: rgba(21, 128, 61, 0.92);
+}
+
+body[data-theme="light"] .validity-hint--invalid {
+  color: rgba(185, 28, 28, 0.92);
+}
+
 .aqa-hint kbd {
   display: inline-block;
   padding: 2px 5px;
@@ -675,6 +708,20 @@ body[data-theme="light"] #answerField.answer-field-unwrap-mode {
   --answer-border-focused: rgba(209, 0, 184, 0.92);
   --answer-glow-unfocused: rgba(209, 0, 184, 0.28);
   --answer-glow-focused: rgba(209, 0, 184, 0.46);
+}
+
+#answerField.answer-field-invalid {
+  --answer-border-unfocused: rgba(239, 68, 68, 0.78);
+  --answer-border-focused: rgba(239, 68, 68, 0.95);
+  --answer-glow-unfocused: rgba(239, 68, 68, 0.32);
+  --answer-glow-focused: rgba(239, 68, 68, 0.5);
+}
+
+body[data-theme="light"] #answerField.answer-field-invalid {
+  --answer-border-unfocused: rgba(197, 24, 24, 0.7);
+  --answer-border-focused: rgba(197, 24, 24, 0.92);
+  --answer-glow-unfocused: rgba(197, 24, 24, 0.3);
+  --answer-glow-focused: rgba(197, 24, 24, 0.48);
 }
 
 .touch-keypad {
@@ -757,14 +804,14 @@ body[data-theme="light"] .touch-key--action:active {
     var(--surface-elevated);
 }
 
-body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode) {
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):not(.answer-field-invalid) {
   --answer-border-unfocused: rgba(16, 96, 146, 0.38);
   --answer-glow-unfocused: rgba(16, 96, 146, 0.18);
 }
 
-body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus-within,
-body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus,
-body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):focus-visible {
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):not(.answer-field-invalid):focus-within,
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):not(.answer-field-invalid):focus,
+body[data-theme="light"] #answerField:not(.answer-field-unwrap-mode):not(.answer-field-invalid):focus-visible {
   --answer-border-focused: color-mix(in srgb, var(--brand) 58%, #ffffff 42%);
   --answer-glow-focused: color-mix(in srgb, var(--brand) 28%, transparent);
 }
@@ -881,6 +928,22 @@ body[data-theme="light"] .ghost-btn:disabled {
   box-shadow: 0 8px 18px rgba(0, 216, 255, 0.32);
 }
 
+.primary-btn:disabled {
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--surface-elevated) 86%, black 14%);
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  box-shadow: none;
+}
+
+.primary-btn:disabled:hover {
+  transform: none;
+}
+
+body[data-theme="light"] .primary-btn:disabled {
+  background: rgba(216, 238, 255, 0.45);
+  color: rgba(15, 47, 69, 0.48);
+}
+
 body:not([data-theme="light"]) .primary-btn {
   background: linear-gradient(110deg, #00d8ff, #1aa8ff 54%, #4dffb8 100%);
 }
@@ -902,10 +965,23 @@ body[data-theme="light"] .ghost-btn {
   box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 34%, transparent);
 }
 
+#checkBtn:disabled {
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--surface-elevated) 86%, black 14%);
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  box-shadow: none;
+}
+
 body[data-theme="light"] #checkBtn {
   background: color-mix(in srgb, var(--brand) 58%, #ffffff 42%);
   color: #0f2e49;
   box-shadow: 0 8px 16px color-mix(in srgb, var(--brand) 28%, transparent);
+}
+
+body[data-theme="light"] #checkBtn:disabled {
+  background: rgba(216, 238, 255, 0.45);
+  color: rgba(15, 47, 69, 0.48);
+  box-shadow: none;
 }
 
 body[data-theme="light"] .ghost-btn {
