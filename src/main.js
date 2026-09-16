@@ -1223,7 +1223,8 @@ function bindEvents() {
     }
   });
 
-  const ensureAnswerTapFocus = () => {
+  const ensureAnswerTapFocus = (event) => {
+    applyDetectedInputMode(event?.pointerType);
     try {
       answerField.focus({ preventScroll: true });
     } catch {
@@ -1233,7 +1234,7 @@ function bindEvents() {
 
   answerField.addEventListener("pointerdown", ensureAnswerTapFocus, true);
   if (!window.PointerEvent) {
-    answerField.addEventListener("touchstart", ensureAnswerTapFocus, true);
+    answerField.addEventListener("touchstart", () => ensureAnswerTapFocus({ pointerType: "touch" }), true);
   }
 
   const blurOnOutsideInteraction = (event) => {
@@ -1744,6 +1745,26 @@ function detectTouchDevice() {
   }
 
   return false;
+}
+
+// Some setups (e.g. a mouse-driven desktop mirrored to a touch-capable interactive
+// whiteboard) report touch capability even though the user is actually clicking with
+// a mouse. Refine the initial static guess using the pointer type of real interactions
+// with the answer field, so the UI can switch modes each time input method changes.
+function applyDetectedInputMode(pointerType) {
+  if (pointerType !== "mouse" && pointerType !== "touch" && pointerType !== "pen") {
+    return;
+  }
+
+  const nextIsTouchDevice = pointerType !== "mouse";
+  if (nextIsTouchDevice === isTouchDevice) {
+    return;
+  }
+
+  isTouchDevice = nextIsTouchDevice;
+  renderInputHelpButtonVisibility();
+  renderTouchKeypad();
+  updateAnswerFieldValidity();
 }
 
 function renderInputHelpButtonVisibility() {
