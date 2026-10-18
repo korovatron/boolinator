@@ -526,6 +526,16 @@ renderNotationToggle();
 renderDifficultyToggle();
 bindEvents();
 startNewChallenge({ isInitialLoad: true });
+openWorksheetModalFromUrl();
+
+// Supports links like ?worksheet or ?worksheet=1 to open the worksheet generator on load.
+function openWorksheetModalFromUrl() {
+  const value = new URLSearchParams(window.location.search).get("worksheet");
+  if (value === null || ["0", "false", "no", "off"].includes(value.toLowerCase())) {
+    return;
+  }
+  openWorksheetModal();
+}
 
 function initializeTheme() {
   try {
